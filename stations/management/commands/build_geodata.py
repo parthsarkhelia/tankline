@@ -11,10 +11,9 @@ import json
 import math
 import re
 import time
-import urllib.parse
-import urllib.request
 import zipfile
 
+import requests
 import shapely
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -65,17 +64,18 @@ def _download(url):
     target = CACHE_DIR / url.rsplit("/", 1)[-1]
     if not target.exists():
         partial = target.with_name(target.name + ".part")  # an interrupted download is never reused
-        # fixed https URLs only
-        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})  # noqa: S310
-        with urllib.request.urlopen(request, timeout=120) as response:  # noqa: S310  fixed https URLs
-            partial.write_bytes(response.read())
+        response = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=120)
+        response.raise_for_status()
+        partial.write_bytes(response.content)
         partial.replace(target)
     return target
 
 
 def _gazetteer(kind):
     with zipfile.ZipFile(_download(GAZETTEER_URL.format(kind))) as archive:
-        name = [n for n in archive.namelist() if n.endswith(".txt")][0]
+        name = next((n for n in archive.namelist() if n.endswith(".txt")), None)
+        if name is None:
+            raise CommandError("no .txt file in gazetteer archive")
         with archive.open(name) as raw, io.TextIOWrapper(raw, encoding="utf-8") as text:
             for row in csv.DictReader(text, delimiter="|"):
                 yield {k.strip(): v.strip() for k, v in row.items()}
@@ -173,21 +173,19 @@ class Command(BaseCommand):
             for (city, state), (lat, lng, source) in sorted(overrides.items()):
                 writer.writerow([city, state, f"{lat:.6f}", f"{lng:.6f}", source])
 
-    def _fetch_missing(self, rows, places, overrides):  # pylint: disable=too-many-locals  # linear fetch loop
+    def _fetch_missing(self, rows, places, overrides):
         missing = sorted(
             {(r["City"], r["State"]) for r in rows if self._locate(r, places, overrides) is None}
         )
         found = {}
         for city, state in missing:
             country = "ca" if state in CANADIAN_PROVINCES else "us"
-            query = urllib.parse.urlencode(
-                {"city": city, "state": state, "countrycodes": country, "format": "json", "limit": 1}
+            params = {"city": city, "state": state, "countrycodes": country, "format": "json", "limit": 1}
+            response = requests.get(
+                NOMINATIM_URL, params=params, headers={"User-Agent": USER_AGENT}, timeout=30
             )
-            url = f"{NOMINATIM_URL}?{query}"
-            # fixed https URL
-            request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})  # noqa: S310
-            with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310  fixed https URL
-                hits = json.load(response)
+            response.raise_for_status()
+            hits = response.json()
             min_lat, max_lat, min_lng, max_lng = NOMINATIM_BOXES[country]
             lat, lng = (float(hits[0]["lat"]), float(hits[0]["lon"])) if hits else (0.0, 0.0)
             if hits and min_lat <= lat <= max_lat and min_lng <= lng <= max_lng:
@@ -209,7 +207,7 @@ class Command(BaseCommand):
             return lat, lng, DEFAULT_RADIUS_MILES, source
         return None
 
-    def _write_locations(self, rows, places, overrides):  # pylint: disable=too-many-locals  # linear write pass
+    def _write_locations(self, rows, places, overrides):
         located, unmatched = {}, set()
         for row in rows:
             key = (normalize(row["City"]), row["State"])
