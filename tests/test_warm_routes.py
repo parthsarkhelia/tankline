@@ -15,7 +15,9 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 @pytest.mark.django_db
 @responses.activate
-def test_second_warm_run_is_all_cache_hits(load_stations, monkeypatch):
+def test_second_warm_run_is_all_cache_hits(  # pylint: disable=unused-argument  # fixture requested for its side effect
+    load_stations, monkeypatch
+):
     monkeypatch.setattr(warm_routes, "DEMO_ROUTES", [("Chicago, IL", "St. Louis, MO")])
     with gzip.open(FIXTURES / "ors_chicago_stl.json.gz", "rt") as fh:
         responses.post(routing.ORS_DIRECTIONS_URL, json=json.load(fh))

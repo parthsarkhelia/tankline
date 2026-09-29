@@ -18,6 +18,8 @@ dependencies = [
 dev = [
     "django-stubs>=6.1.1",
     "djangorestframework-stubs>=3.18.1",
+    "pylint>=4.0.10",
+    "pylint-django>=2.8.0",
     "pyright>=1.1.414",
     "pytest>=9",
     "pytest-django>=4.14",
@@ -49,3 +51,20 @@ include = ["."]
 exclude = [".venv", "**/migrations", ".cache"]
 venvPath = "."
 venv = ".venv"
+
+[tool.pylint.main]
+load-plugins = ["pylint_django"]
+django-settings-module = "config.settings_test"
+ignore-paths = ["^.*/migrations/.*$"]
+
+[tool.pylint.format]
+max-line-length = 110  # matches ruff
+
+[tool.pylint."messages control"]
+disable = [
+    "missing-module-docstring",    # docstrings where they explain something; not one per file
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "abstract-method",             # read-only DRF serializers never implement create/update
+    "too-few-public-methods",      # Django/DRF classes (Meta, AppConfig, serializers)
+]

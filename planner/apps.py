@@ -5,4 +5,5 @@ class PlannerConfig(AppConfig):
     name = "planner"
 
     def ready(self):
-        from . import checks  # noqa: F401  registers system checks
+        # Deliberately lazy: registers the system checks once the app registry is ready.
+        from . import checks  # noqa: F401  # pylint: disable=import-outside-toplevel,unused-import

@@ -15,12 +15,13 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 application = get_wsgi_application()
 
+# Imports below sit after app setup on purpose.
 # Load lookup tables once in the master process (gunicorn --preload); forked workers share them.
-from django.db import DatabaseError, connections  # noqa: E402
+from django.db import DatabaseError, connections  # noqa: E402  # pylint: disable=wrong-import-position
 
-from planner.borders import default_borders  # noqa: E402
-from planner.services import station_table  # noqa: E402
-from stations.geo import places_index, zcta_index  # noqa: E402
+from planner.borders import default_borders  # noqa: E402  # pylint: disable=wrong-import-position
+from planner.services import station_table  # noqa: E402  # pylint: disable=wrong-import-position
+from stations.geo import places_index, zcta_index  # noqa: E402  # pylint: disable=wrong-import-position
 
 places_index()
 zcta_index()

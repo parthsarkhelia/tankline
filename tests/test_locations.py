@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name  # pytest fixtures are passed by name
 import pytest
 
 from planner import locations
