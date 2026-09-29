@@ -1,8 +1,8 @@
-from planner.checks import routing_settings
+from planner.apps import routing_settings
 
 
 def ids():
-    return [m.id for m in routing_settings(None)]
+    return [m.id for m in routing_settings()]
 
 
 def test_ors_without_key_warns(settings):

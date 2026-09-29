@@ -43,6 +43,8 @@ ignore = ["S101"]  # asserts are fine in tests
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S"]
+"config/settings_test.py" = ["E402", "F403", "F405", "S105"]  # env must be set before settings import
+"config/wsgi.py" = ["E402"]  # warm-up runs after the WSGI app is built
 
 [tool.pyright]
 typeCheckingMode = "standard"
@@ -67,4 +69,15 @@ disable = [
     "missing-function-docstring",
     "abstract-method",             # read-only DRF serializers never implement create/update
     "too-few-public-methods",      # Django/DRF classes (Meta, AppConfig, serializers)
+    "wrong-import-position",       # ruff owns import rules (E402)
+    "wildcard-import",             # ruff owns import rules (F403)
+    "unused-wildcard-import",      # ruff owns import rules (F405)
+    "unused-import",               # ruff owns import rules (F401)
 ]
+
+[tool.pylint.design]
+# Sized for the vectorised numpy code in planner/, which keeps its arrays together.
+max-locals = 35
+max-args = 7
+max-positional-arguments = 7
+max-statements = 60
