@@ -32,8 +32,9 @@ tank is full.
 The optimiser is an exact dynamic programme over fuel levels. The state at each station is the fuel in
 the tank on arrival, in tenths of a mile. For every station a vectorised prefix minimum finds the
 cheapest way to leave with each fuel level, so a purchase of any size is considered without looping over
-sizes. A stop pumps either nothing or at least the minimum fill (10 gallons), except a smaller final
-top-up that is exactly what reaches the destination. Ties on cost go to the plan with fewer stops.
+sizes. A stop pumps nothing, at least the minimum fill (10 gallons), or whatever fills the tank to full
+(a tank too full to take 10 gallons can still be topped up). The one other exception is the final
+purchase that is exactly what reaches the destination. Ties on cost go to the plan with fewer stops.
 Stations sharing a position keep only the cheapest. The work is about 55 microseconds per distinct
 position; Miami to Seattle has 154 positions and takes about 9 ms. The destination acts as a free
 station at the end of the line, which makes the last leg buy only what is needed.
@@ -75,8 +76,9 @@ rejected by state, bounding box and border polygons with `outside_service_area`.
 
 ## Caching and call budget
 
-A request can make at most three external calls: one geocoder call per free-text place (start and
-finish) and one routing call. `City, ST`, ZIP and `lat,lng` input resolves locally, so the typical
+A request normally makes one external call and at most three: one geocoder call per free-text place
+(start and finish) and one routing call. In the rare case both places need the fallback geocoder and
+ORS also fails, it is four. `City, ST`, ZIP and `lat,lng` input resolves locally, so the typical
 request makes one call, the routing call. Geocoder answers are cached for 30 days, routes for 7 days
 (10 minutes if OSRM answered because ORS failed, so a real truck route replaces it soon), and the
 finished plan is cached under a key that includes the station data version, so a repeated request costs

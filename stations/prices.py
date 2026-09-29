@@ -1,4 +1,4 @@
-"""The provided fuel price CSV (never committed) and the committed city coordinates."""
+"""The fuel price CSV (data/fuel-prices.csv) and the committed city coordinates."""
 
 import csv
 import gzip
