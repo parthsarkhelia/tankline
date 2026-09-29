@@ -118,5 +118,8 @@ ROUTE_CACHE_SECONDS = 7 * 24 * 3600
 # Fuel model
 VEHICLE_RANGE_MILES = 500
 VEHICLE_MPG = 10
+VEHICLE_MIN_FILL_GALLONS = (
+    10  # a stop pumps at least this; less only when it is exactly what reaches the destination
+)
 CORRIDOR_BASE_MILES = 5.0
 CORRIDOR_MAX_MILES = 20.0

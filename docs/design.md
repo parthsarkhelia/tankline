@@ -29,12 +29,14 @@ the tank, so at 10 mpg one unit is 0.01 gallon and no float rounding enters the 
 in gallons (no volume discounts), and fuel bought earlier can be carried forward at no cost until the
 tank is full.
 
-Under those conditions a greedy rule is optimal. At a stop, if a cheaper station lies within one tank,
-buy only enough to reach the first such station; fuel bought here is no cheaper than fuel bought there,
-so nothing more should be bought. If none does, every station in range is at least as expensive as this
-one, so fill up and drive to the cheapest station in range; the truck will need fuel from it and
-buying more here only defers the choice to a worse price. The destination acts as a free station at the
-end of the line, which makes the last leg buy only what is needed.
+The optimiser is an exact dynamic programme over fuel levels. The state at each station is the fuel in
+the tank on arrival, in tenths of a mile. For every station a vectorised prefix minimum finds the
+cheapest way to leave with each fuel level, so a purchase of any size is considered without looping over
+sizes. A stop pumps either nothing or at least the minimum fill (10 gallons), except a smaller final
+top-up that is exactly what reaches the destination. Ties on cost go to the plan with fewer stops.
+Stations sharing a position keep only the cheapest. The work is about 55 microseconds per distinct
+position; Miami to Seattle has 154 positions and takes about 9 ms. The destination acts as a free
+station at the end of the line, which makes the last leg buy only what is needed.
 
 Reserve rule. With `start_fuel_miles` at 0 the truck begins empty. Stations within the start city's
 corridor count as mile 0, and the plan begins with a fill at the cheapest of them. If none is in the
@@ -44,11 +46,8 @@ paid for, no fill exceeds 50 gallons, and `gallons_purchased` equals `gallons_bu
 rejecting the trip, would fail for many short routes that start between stations. A 422 is returned
 only when a stretch of the route has no station within 500 miles.
 
-Ties. When two stops sell at the same price the plan merges them into one stop if the tank allows, since
-the cost is unchanged and the objective prefers fewer stops. The merge is a local rule, not an exact search over
-(cost, stops), which would be O(n^3) in candidates and blow the latency budget. In random tie-heavy
-tests the stop count was minimal in all but about 1 case in 3,000; the total cost is not affected by the merge. That
-ceiling is documented in `planner/optimizer.py`.
+Ties. Because the programme minimises (cost, stops) together, the stop count is exactly minimal among
+the cheapest plans, and it is checked against an exhaustive search in the tests.
 
 ## Corridor
 
