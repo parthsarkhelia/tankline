@@ -179,4 +179,4 @@ def test_osrm_snaps_only_within_five_km(settings):
     settings.ROUTING_PROVIDER = "osrm"
     responses.get(OSRM_CHI_STL, json=fixture("osrm_chicago_stl"))
     routing.fetch_route(*CHI, *STL)
-    assert "radiuses=5000%3B5000" in responses.calls[0].request.url
+    assert "radiuses=5000%3B5000" in (responses.calls[0].request.url or "")
