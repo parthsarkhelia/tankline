@@ -10,4 +10,4 @@ USER app
 EXPOSE 8000
 # load_stations reads data/fuel-prices.csv from the image; it exits with a clear message if the file is missing.
 # --threads: requests mostly wait on the routing API; --preload: lookups load once (see config/wsgi.py).
-CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py load_stations && gunicorn config.wsgi -b 0.0.0.0:8000 -w 3 --threads 4 --preload --timeout 60"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py load_stations && exec gunicorn config.wsgi -b 0.0.0.0:8000 -w 3 --threads 4 --preload --timeout 60"]

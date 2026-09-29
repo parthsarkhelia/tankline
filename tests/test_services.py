@@ -72,6 +72,17 @@ def test_reserve_run_when_no_station_is_near_the_start():
 
 
 @responses.activate
+def test_reserve_note_counts_the_start_fuel():
+    Station.objects.filter(lat__gt=41.0).delete()
+    cache.set(STATIONS_VERSION_KEY, "no-chicago-fuel", None)
+    responses.post(routing.ORS_DIRECTIONS_URL, json=ors_fixture("ors_chicago_stl"))
+    body = services.plan_trip("Chicago, IL", "St. Louis, MO", start_fuel_miles=50)
+    note = next(n for n in body["assumptions"] if "on reserve" in n)
+    assert f"runs {body['fuel_stops'][0]['mile'] - 50:.1f} miles" in note
+    assert "Pass start_fuel_miles" not in note
+
+
+@responses.activate
 def test_start_fuel_removes_the_empty_tank_note():
     responses.post(routing.ORS_DIRECTIONS_URL, json=ors_fixture("ors_chicago_stl"))
     assert services.plan_trip("Chicago, IL", "St. Louis, MO", start_fuel_miles=100)["assumptions"] == []
@@ -177,3 +188,16 @@ def test_fallback_route_is_cached_briefly(monkeypatch):
     body = services.plan_trip("Chicago, IL", "St. Louis, MO")
     assert body["route"]["provider"] == "osrm"
     assert timeouts["route"] == timeouts["plan"] == services.FALLBACK_ROUTE_SECONDS
+
+
+@responses.activate
+def test_evicted_stations_version_never_serves_an_old_plan(monkeypatch):
+    responses.post(routing.ORS_DIRECTIONS_URL, json=ors_fixture("ors_chicago_stl"))
+    runs = []
+    real = services.place_stations
+    monkeypatch.setattr(services, "place_stations", lambda *a, **k: runs.append(1) or real(*a, **k))
+    services.plan_trip("Chicago, IL", "St. Louis, MO")
+    for _ in range(2):  # a fixed fallback version would serve the second eviction's plan again
+        cache.delete(STATIONS_VERSION_KEY)
+        services.plan_trip("Chicago, IL", "St. Louis, MO")
+    assert len(runs) == 3

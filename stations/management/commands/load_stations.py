@@ -1,4 +1,4 @@
-"""Load stations and prices from the provided CSV, placed at their city's committed coordinates."""
+"""Load stations and prices from data/fuel-prices.csv, placed at their city's committed coordinates."""
 
 import uuid
 from decimal import Decimal
@@ -22,7 +22,7 @@ MAX_ID = 2**31 - 1  # PositiveIntegerField range on every database backend
 
 
 class Command(BaseCommand):
-    help = "Load fuel stations and prices from the provided CSV (replaces existing rows)."
+    help = "Load fuel stations and prices from the fuel price CSV, data/fuel-prices.csv (replaces rows)."
 
     def add_arguments(self, parser):
         parser.add_argument("--csv", default=str(DEFAULT_CSV))
@@ -30,9 +30,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         path = Path(options["csv"])
         if not path.exists():
-            raise CommandError(
-                f"{path} not found. Copy the provided fuel price CSV to data/fuel-prices.csv (see README)."
-            )
+            raise CommandError(f"{path} not found; it ships with the repository (see README).")
         try:
             rows = dedupe_lowest_price(read_price_rows(path))
         except ValueError as exc:
@@ -44,10 +42,9 @@ class Command(BaseCommand):
             try:
                 station_id, rack_id = int(row["OPIS Truckstop ID"]), int(row["Rack ID"] or 0)
             except ValueError:
+                station_id = rack_id = -1
+            if not (0 < station_id <= MAX_ID and 0 <= rack_id <= MAX_ID):
                 place = None
-            else:
-                if not (0 < station_id <= MAX_ID and 0 <= rack_id <= MAX_ID):
-                    place = None
             if place is None:
                 skipped += 1
                 continue

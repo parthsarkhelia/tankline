@@ -9,26 +9,39 @@ cost only; tolls, hours of service, traffic and brand preferences are out of sco
 GET /api/v1/plan/?start=Detroit, MI&finish=Chicago, IL
 ```
 
-The response below is trimmed (route geometry and some per-stop fields left out) and was generated from the
-synthetic stations in `tests/fixtures/`, not from the real price list.
+The response below is trimmed (route geometry and some per-stop fields left out). It is a first, uncached
+request on the real price list with OSRM routing.
 
 ```json
 {
-  "route": {"distance_miles": 277.5, "duration_hours": 5.3, "provider": "osrm", "profile": "driving"},
+  "route": {
+    "distance_miles": 277.5,
+    "duration_hours": 5.3,
+    "provider": "osrm",
+    "profile": "driving"
+  },
   "fuel_stops": [
-    {"stop": 1, "name": "SAMPLE STOP 17", "city": "Detroit", "state": "MI", "price_per_gallon": "3.990",
-     "mile": 0.0, "gallons": "13.37", "reserve_gallons": "0.00", "cost": "53.35"},
-    {"stop": 2, "name": "SAMPLE STOP 29", "city": "Kalamazoo", "state": "MI", "price_per_gallon": "3.930",
-     "mile": 133.7, "gallons": "6.17", "reserve_gallons": "0.00", "cost": "24.25"},
-    {"stop": 3, "name": "SAMPLE STOP 7", "city": "Bridgman", "state": "MI", "price_per_gallon": "3.890",
-     "mile": 195.4, "gallons": "6.11", "reserve_gallons": "0.00", "cost": "23.77"},
-    {"stop": 4, "name": "SAMPLE STOP 26", "city": "Hammond", "state": "IN", "price_per_gallon": "3.720",
-     "mile": 256.5, "gallons": "2.10", "reserve_gallons": "0.00", "cost": "7.81"}
+    { "stop": 1, "name": "BP", "city": "Dearborn", "state": "MI", "price_per_gallon": "3.199", "mile": 6.6, "gallons": "13.37", "reserve_gallons": "0.00", "cost": "42.77" },
+    { "stop": 2, "name": "D AVENUE FUEL PLAZA", "city": "Kalamazoo", "state": "MI", "price_per_gallon": "3.099", "mile": 133.7, "gallons": "10.00", "reserve_gallons": "0.00", "cost": "30.99" },
+    { "stop": 3, "name": "Pilot Travel Center #666", "city": "Benton Harbor", "state": "MI", "price_per_gallon": "3.059", "mile": 180.4, "gallons": "4.38", "reserve_gallons": "0.00", "cost": "13.40" }
   ],
-  "summary": {"stops": 4, "gallons_purchased": "27.75", "gallons_burned": "27.75", "total_cost": "109.18",
-              "start_fuel_miles": 0.0, "range_miles": 500, "mpg": 10},
-  "assumptions": ["Assumes the truck starts with an empty tank and fills up at the cheapest station near the start. ..."],
-  "meta": {"external_calls": 0, "cache_hit": true, "elapsed_ms": 139},
+  "summary": {
+    "stops": 3,
+    "gallons_purchased": "27.75",
+    "gallons_burned": "27.75",
+    "total_cost": "87.16",
+    "start_fuel_miles": 0.0,
+    "range_miles": 500,
+    "mpg": 10
+  },
+  "assumptions": [
+    "Assumes the truck starts with an empty tank and fills up at the cheapest station near the start. ..."
+  ],
+  "meta": {
+    "external_calls": 1,
+    "cache_hit": false,
+    "elapsed_ms": 429
+  },
   "map_url": "http://localhost:8000/map/?start=Detroit%2C+MI&finish=Chicago%2C+IL&start_fuel_miles=0"
 }
 ```
@@ -53,14 +66,15 @@ automatically. Port 8000 busy? `TANKLINE_PORT=8080 docker compose up --build`.
 On start the container migrates the database, loads the stations from the CSV and starts gunicorn.
 When it is up:
 
-- API: <http://localhost:8000/api/v1/plan/?start=Chicago, IL&finish=Denver, CO>
-- Map: <http://localhost:8000/map/?start=Chicago, IL&finish=Denver, CO>
+- API: <http://localhost:8000/api/v1/plan/?start=Chicago%2C+IL&finish=Denver%2C+CO>
+- Map: <http://localhost:8000/map/?start=Chicago%2C+IL&finish=Denver%2C+CO>
 - Interactive docs: <http://localhost:8000/api/docs/>
 - Health: <http://localhost:8000/healthz> (503 until stations are loaded)
 
 ### Local (SQLite)
 
 ```bash
+cp .env.example .env
 uv sync
 uv run --env-file .env manage.py migrate
 uv run --env-file .env manage.py load_stations
@@ -154,7 +168,7 @@ minimum-fill rule. Cost ties go to the plan with fewer stops.
   corridor count as mile 0, so the trip begins with a fill at the cheapest of them.
 - With no station there, the truck runs on reserve to the first station and repays that fuel there
   (`reserve_gallons`), so every mile is paid for and no fill exceeds 50 gallons.
-- Minimum fill 10 gal per stop (a smaller final top-up is allowed when it is all the destination needs).
+- Minimum fill 10 gal per stop, unless the stop fills the tank to full or is the final purchase needed to reach the destination.
 - 422 `fuel_gap` only when a stretch has no station within 500 miles.
 - Cost only: no detour cost, tolls, hours of service or brand preferences.
 - Canadian stations count only while the route is in Canada. In the data, Sarnia diesel is $3.31 against
@@ -164,21 +178,25 @@ minimum-fill rule. Cost ties go to the plan with fewer stops.
 
 ## Performance
 
-Manual run on the real data (OSRM routing): Chicago, IL to Denver, CO is 1,002.7 miles with 7 stops,
-100.27 gallons and $292.01. Cold it makes 1 external call and takes about 2.1 s, nearly all of it the
-routing call. Repeated, it takes 1.9 ms with 0 external calls. Lookup tables are loaded once before the
-gunicorn workers fork (`--preload`), so the first request in each worker is not slower.
+Docker Compose on an Apple Silicon laptop, real price list, routing by the public OSRM demo server. Figures are from
+a warm server (`--preload` loads the lookup tables once before the workers fork) and vary run to run.
 
-Docker Compose figures, measured on an Apple Silicon laptop with OSRM routing: New York, NY to Los Angeles,
-CA takes 1.38 s cold (`elapsed_ms` 1375, 1 external call) and 4 ms end to end when cached (`elapsed_ms` 1, 0 external
-calls). Planning alone, with the route already cached and the fuel plan recomputed, takes about 90 to 130 ms for
-New York to Los Angeles (about 2,800 miles) and about 60 ms for Miami, FL to Seattle, WA, over the full station set.
+| Request | Time |
+| --- | --- |
+| New York, NY to Los Angeles, CA, cold (1 external call) | 1.03 to 1.53 s end to end |
+| of which the routing provider (`fetch_route` timed directly, 5 calls) | 0.41 to 1.45 s |
+| of which our planning (route cached, new `start_fuel_miles`) | 58 to 105 ms |
+| Same request, cached (0 external calls) | 1 to 6 ms |
+| Miami, FL to Seattle, WA, warm server, route cached, new plan | 64 to 69 ms |
+
+"New plan" means a new `start_fuel_miles` value: the route comes from the cache and the fuel plan is recomputed over
+the full station set. The routing provider dominates a cold request; everything we do is under about 0.1 s.
 
 ## Development
 
 ```bash
 uv run pytest                 # synthetic stations, recorded routes, network blocked
-uv run ruff check . && uv run ruff format --check .
+uv run ruff check . && uv run ruff format --check . && uv run pyright
 uv run --env-file .env manage.py build_geodata --fetch-missing   # rebuild coordinate files
 uv run --env-file .env manage.py warm_routes                     # before a demo
 ```
