@@ -115,16 +115,19 @@ def _ors_route(start_lat, start_lng, finish_lat, finish_lng):
 def _ors_error_code(response):
     try:
         error = response.json().get("error")
-        return error.get("code") if isinstance(error, dict) else None
-    except ValueError:
+        code = error.get("code") if isinstance(error, dict) else None
+    except ValueError, AttributeError:
         return None
+    return code if isinstance(code, int) else None
 
 
 def _osrm_route(start_lat, start_lng, finish_lat, finish_lng):
     url = OSRM_ROUTE_URL.format(lng1=start_lng, lat1=start_lat, lng2=finish_lng, lat2=finish_lat)
     try:
         response = _session.get(
-            url, params={"overview": "full", "geometries": "geojson"}, timeout=settings.HTTP_TIMEOUT
+            url,
+            params={"overview": "full", "geometries": "geojson", "radiuses": "5000;5000"},
+            timeout=settings.HTTP_TIMEOUT,
         )
         data = response.json()
     except (requests.RequestException, ValueError) as exc:
@@ -132,7 +135,7 @@ def _osrm_route(start_lat, start_lng, finish_lat, finish_lng):
         raise UpstreamUnavailable("The routing service is unavailable. Please try again shortly.") from exc
     if not isinstance(data, dict):
         raise UpstreamUnavailable("The routing service is unavailable. Please try again shortly.")
-    if data.get("code") in OSRM_NO_ROUTE_CODES:
+    if isinstance(data.get("code"), str) and data["code"] in OSRM_NO_ROUTE_CODES:
         raise RouteRejected(ORS_REJECTIONS[2009] if data["code"] == "NoRoute" else ORS_REJECTIONS[2010])
     try:
         route = data["routes"][0]

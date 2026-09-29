@@ -150,3 +150,33 @@ def test_ors_without_key_uses_osrm_only(settings):
     route, calls = routing.fetch_route(*CHI, *STL)
     assert (route.provider, calls) == ("osrm", 1)
     assert [(c.request.url or "").split("?")[0] for c in responses.calls] == [OSRM_CHI_STL]
+
+
+@responses.activate
+def test_ors_non_object_error_body_falls_back():
+    responses.post(routing.ORS_DIRECTIONS_URL, status=503, json=["busy"])
+    responses.get(OSRM_CHI_STL, json=fixture("osrm_chicago_stl"))
+    assert routing.fetch_route(*CHI, *STL)[0].provider == "osrm"
+
+
+@responses.activate
+def test_ors_non_integer_error_code_falls_back():
+    responses.post(routing.ORS_DIRECTIONS_URL, status=400, json={"error": {"code": [2004]}})
+    responses.get(OSRM_CHI_STL, json=fixture("osrm_chicago_stl"))
+    assert routing.fetch_route(*CHI, *STL)[0].provider == "osrm"
+
+
+@responses.activate
+def test_osrm_non_string_code_is_502(settings):
+    settings.ROUTING_PROVIDER = "osrm"
+    responses.get(OSRM_CHI_STL, json={"code": ["NoRoute"]})
+    with pytest.raises(UpstreamUnavailable):
+        routing.fetch_route(*CHI, *STL)
+
+
+@responses.activate
+def test_osrm_snaps_only_within_five_km(settings):
+    settings.ROUTING_PROVIDER = "osrm"
+    responses.get(OSRM_CHI_STL, json=fixture("osrm_chicago_stl"))
+    routing.fetch_route(*CHI, *STL)
+    assert "radiuses=5000%3B5000" in responses.calls[0].request.url
