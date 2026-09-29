@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 from django.core.management import CommandError, call_command
 
+from stations.geo import places_index
 from stations.management.commands.build_geodata import radius_from_area
 from stations.models import Station
 from stations.prices import dedupe_lowest_price, read_price_rows
@@ -71,9 +72,6 @@ def test_load_stations_joins_prices_to_committed_locations(tmp_path, client):
     [("lexington", "KY"), ("macon", "GA"), ("boise", "ID"), ("butte", "MT"), ("st louis", "MO")],
 )
 def test_consolidated_cities_resolve_offline(text, state):
-    # Lazy: keeps the index build out of collection time.
-    from stations.geo import places_index  # pylint: disable=import-outside-toplevel
-
     assert any(p.state == state for p in places_index().get(text, []))
 
 

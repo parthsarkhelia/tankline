@@ -1,4 +1,3 @@
-# pylint: disable=redefined-outer-name  # pytest fixtures are passed by name
 import pytest
 
 from planner import locations
@@ -11,8 +10,8 @@ SPRINGFIELD_IL = PlaceRecord("Springfield", "IL", 39.7911, -89.6446, 7.8)
 SPRINGFIELD_MO = PlaceRecord("Springfield", "MO", 37.1942, -93.2913, 9.1)
 
 
-@pytest.fixture(autouse=True)
-def small_index(monkeypatch):
+@pytest.fixture(autouse=True, name="small_index")
+def _small_index(monkeypatch):
     index = {
         "st louis": [ST_LOUIS],
         "springfield": [SPRINGFIELD_IL, SPRINGFIELD_MO],

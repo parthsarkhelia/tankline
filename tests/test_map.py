@@ -12,12 +12,7 @@ from stations.models import Station
 from stations.prices import STATIONS_VERSION_KEY
 
 FIXTURES = Path(__file__).parent / "fixtures"
-pytestmark = pytest.mark.django_db
-
-
-@pytest.fixture(autouse=True)
-def stations(load_stations):  # pylint: disable=unused-argument  # fixture requested for its side effect
-    """Synthetic sample stations for every test in this module."""
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("load_stations")]
 
 
 def ors(name):

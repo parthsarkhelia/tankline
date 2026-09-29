@@ -21,12 +21,7 @@ def ors_fixture(name):
         return json.load(fh)
 
 
-@pytest.fixture(autouse=True)
-def stations(load_stations):  # pylint: disable=unused-argument  # fixture requested for its side effect
-    """Every test here plans against the synthetic sample stations."""
-
-
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("load_stations")]
 
 
 @responses.activate
