@@ -8,7 +8,6 @@ services:
       POSTGRES_USER: tankline
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tankline}
       REDIS_URL: redis://redis:6379/0
-    volumes: ["./data:/app/data:ro"]  # the provided fuel-prices.csv; never baked into the image
     ports: ["127.0.0.1:8000:8000"]  # this machine only; db and redis publish no ports at all
     depends_on:
       db: { condition: service_healthy }

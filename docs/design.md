@@ -2,7 +2,7 @@
 
 ## Data pipeline
 
-The provided price list has 8,151 rows and 6,738 distinct OPIS truckstop IDs, so many stations appear
+The price list has 8,151 rows and 6,738 distinct OPIS truckstop IDs, so many stations appear
 more than once (different rack IDs or products). `load_stations` keeps one row per ID, the lowest price.
 Rows whose price cannot be read or is implausible (zero or negative, NaN, $20 or more) are skipped. The
 CSV header may carry padding spaces, as it does when a spreadsheet re-saves the file; column names and
@@ -19,8 +19,8 @@ the ZIP code index and the country borders (Natural Earth).
 
 The 620 Canadian rows are kept. Whether one is used depends on where the route is, not on the row.
 
-The price file itself is never committed: `data/*` is git-ignored, Docker mounts it read-only, and the
-tests use an invented sample.
+The price file is committed as `data/fuel-prices.csv` and copied into the Docker image; the tests use an
+invented sample instead.
 
 ## Optimiser
 

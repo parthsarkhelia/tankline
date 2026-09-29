@@ -1,7 +1,7 @@
 # tankline
 
 Given a start and a finish inside the contiguous USA, tankline plans the cheapest fuel stops for a truck
-(500 mile range, 10 mpg, 50 gallon tank) using the provided OPIS price list. It returns the route, each
+(500 mile range, 10 mpg, 50 gallon tank) using the OPIS price list in `data/fuel-prices.csv`. It returns the route, each
 fuel stop with the gallons bought and the cost, and the total money spent on fuel. It minimises fuel
 cost only; tolls, hours of service, traffic and brand preferences are out of scope.
 
@@ -10,7 +10,7 @@ GET /api/v1/plan/?start=Detroit, MI&finish=Chicago, IL
 ```
 
 The response below is trimmed (route geometry and some per-stop fields left out) and was generated from the
-synthetic stations in `tests/fixtures/`, not from the provided price list.
+synthetic stations in `tests/fixtures/`, not from the real price list.
 
 ```json
 {
@@ -37,8 +37,8 @@ synthetic stations in `tests/fixtures/`, not from the provided price list.
 
 ## Quick start
 
-The provided fuel price CSV is not in this repository. Copy it to `data/fuel-prices.csv` first. It is
-git-ignored and never baked into the Docker image.
+Prices come from `data/fuel-prices.csv`, a retail diesel price list of US and Canadian truck stops that is
+included in the repository.
 
 ### Docker (Postgres and Redis included)
 
@@ -48,7 +48,7 @@ docker compose up --build
 ```
 
 On start the container migrates the database, loads the stations from the CSV and starts gunicorn.
-If `data/fuel-prices.csv` is missing it exits with a message saying so. When it is up:
+When it is up:
 
 - API: <http://localhost:8000/api/v1/plan/?start=Chicago, IL&finish=Denver, CO>
 - Map: <http://localhost:8000/map/?start=Chicago, IL&finish=Denver, CO>
@@ -125,7 +125,7 @@ Detail and measurements are in [docs/design.md](docs/design.md).
 
 **Data.** `load_stations` reads the CSV, keeps the lowest price for each OPIS ID, drops unreadable or
 implausible prices and places each station at its city's coordinates. The city coordinates are committed
-(`stations/data/`), so no geocoding happens at request time and no price data is committed.
+(`stations/data/`), so no geocoding happens at request time.
 
 **Routing.** One routing call per new start/finish pair. OpenRouteService with the `driving-hgv` profile
 is the primary provider, the public OSRM server the fallback. Routes and plans are cached for a week
@@ -161,7 +161,7 @@ the cheapest station in range. Ties are resolved towards fewer stops.
 
 ## Performance
 
-Manual run on the provided data (OSRM routing): Chicago, IL to Denver, CO is 1,002.7 miles with 7 stops,
+Manual run on the real data (OSRM routing): Chicago, IL to Denver, CO is 1,002.7 miles with 7 stops,
 100.27 gallons and $292.01. Cold it makes 1 external call and takes about 2.1 s, nearly all of it the
 routing call. Repeated, it takes 1.9 ms with 0 external calls. Lookup tables are loaded once before the
 gunicorn workers fork (`--preload`), so the first request in each worker is not slower.

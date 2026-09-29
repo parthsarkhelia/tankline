@@ -8,6 +8,6 @@ COPY . .
 RUN useradd --create-home app && chown -R app /app
 USER app
 EXPOSE 8000
-# load_stations reads data/fuel-prices.csv, mounted from the host (see compose.yaml); it exits with a clear message if missing.
+# load_stations reads data/fuel-prices.csv from the image; it exits with a clear message if the file is missing.
 # --threads: requests mostly wait on the routing API; --preload: lookups load once (see config/wsgi.py).
 CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py load_stations && gunicorn config.wsgi -b 0.0.0.0:8000 -w 3 --threads 4 --preload --timeout 60"]
