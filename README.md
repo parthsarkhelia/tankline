@@ -190,16 +190,19 @@ a warm server (`--preload` loads the lookup tables once before the workers fork)
 | Miami, FL to Seattle, WA, warm server, route cached, new plan | 64 to 69 ms |
 
 "New plan" means a new `start_fuel_miles` value: the route comes from the cache and the fuel plan is recomputed over
-the full station set. The routing provider dominates a cold request; everything we do is under about 0.1 s.
+the full station set. The routing provider dominates a cold request; planning stays around 0.1 s or less.
 
 ## Development
 
 ```bash
 uv run pytest                 # synthetic stations, recorded routes, network blocked
 uv run ruff check . && uv run ruff format --check . && uv run pyright
+uv run pylint config planner stations tests
 uv run --env-file .env manage.py build_geodata --fetch-missing   # rebuild coordinate files
 uv run --env-file .env manage.py warm_routes                     # before a demo
 ```
+
+In VS Code select `.venv` as the Python interpreter so the Pylint and Pylance extensions load the project's plugins and stubs.
 
 Tests use `tests/fixtures/fuel-prices-sample.csv`: real city coordinates, invented names and prices.
 
