@@ -38,7 +38,9 @@ class RangeGapError(Exception):
         self.to_position = to_position
 
 
-def plan_purchases(candidates, length, start_fuel=0, tank=TANK_TENTHS, min_fill=0):
+def plan_purchases(  # pylint: disable=too-many-locals,too-many-statements  # vectorised DP keeps its arrays together
+    candidates, length, start_fuel=0, tank=TANK_TENTHS, min_fill=0
+):
     """Return the purchases that minimise total cost, then the number of stops.
 
     Exact dynamic programme over fuel levels: for each station in route order it
@@ -127,7 +129,9 @@ def _check_gaps(path, length, tank):
             raise RangeGapError(a, b)
 
 
-def _trace(path, sources, reserve, length, end_key, end_fuel, best_finish):
+def _trace(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # unpacks the DP tables
+    path, sources, reserve, length, end_key, end_fuel, best_finish
+):
     """Walk the recorded choices back from the cheapest way to finish."""
     pumped = {}
     if best_finish[0] < end_key:

@@ -76,10 +76,9 @@ rejected by state, bounding box and border polygons with `outside_service_area`.
 
 ## Caching and call budget
 
-A request normally makes one external call and at most three: one geocoder call per free-text place
-(start and finish) and one routing call. In the rare case both places need the fallback geocoder and
-ORS also fails, it is four. `City, ST`, ZIP and `lat,lng` input resolves locally, so the typical
-request makes one call, the routing call. Geocoder answers are cached for 30 days, routes for 7 days
+A request normally makes one external call; at most three, or four in the rare case where both places
+need the fallback geocoder and OpenRouteService also fails. `City, ST`, ZIP and `lat,lng` input resolves
+locally, so the typical request makes only the routing call. Geocoder answers are cached for 30 days, routes for 7 days
 (10 minutes if OSRM answered because ORS failed, so a real truck route replaces it soon), and the
 finished plan is cached under a key that includes the station data version, so a repeated request costs
 0 calls and about 2 ms. Redis holds the cache under Docker; without it a file cache in `.cache/` keeps

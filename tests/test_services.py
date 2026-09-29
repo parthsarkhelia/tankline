@@ -22,7 +22,7 @@ def ors_fixture(name):
 
 
 @pytest.fixture(autouse=True)
-def stations(load_stations):
+def stations(load_stations):  # pylint: disable=unused-argument  # fixture requested for its side effect
     """Every test here plans against the synthetic sample stations."""
 
 

@@ -35,7 +35,10 @@ from stations.prices import DEFAULT_CSV, LOCATIONS_FILE, dedupe_lowest_price, re
 GAZETTEER_URL = (
     "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_Gaz_{}_national.zip"
 )
-BORDERS_URL = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_10m_admin_0_countries.geojson"
+BORDERS_URL = (
+    "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2"
+    "/geojson/ne_10m_admin_0_countries.geojson"
+)
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 USER_AGENT = "tankline-geodata/1.0 (+https://github.com/parthsarkhelia/tankline)"
 OVERRIDES_FILE = DATA_DIR / "geocode_overrides.csv"
@@ -62,7 +65,8 @@ def _download(url):
     target = CACHE_DIR / url.rsplit("/", 1)[-1]
     if not target.exists():
         partial = target.with_name(target.name + ".part")  # an interrupted download is never reused
-        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})  # noqa: S310  fixed https URL
+        # fixed https URLs only
+        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})  # noqa: S310
         with urllib.request.urlopen(request, timeout=120) as response:  # noqa: S310  fixed https URLs
             partial.write_bytes(response.read())
         partial.replace(target)
@@ -71,10 +75,10 @@ def _download(url):
 
 def _gazetteer(kind):
     with zipfile.ZipFile(_download(GAZETTEER_URL.format(kind))) as archive:
-        name = next(n for n in archive.namelist() if n.endswith(".txt"))
-        text = io.TextIOWrapper(archive.open(name), encoding="utf-8")
-        for row in csv.DictReader(text, delimiter="|"):
-            yield {k.strip(): v.strip() for k, v in row.items()}
+        name = [n for n in archive.namelist() if n.endswith(".txt")][0]
+        with archive.open(name) as raw, io.TextIOWrapper(raw, encoding="utf-8") as text:
+            for row in csv.DictReader(text, delimiter="|"):
+                yield {k.strip(): v.strip() for k, v in row.items()}
 
 
 class Command(BaseCommand):
@@ -169,7 +173,7 @@ class Command(BaseCommand):
             for (city, state), (lat, lng, source) in sorted(overrides.items()):
                 writer.writerow([city, state, f"{lat:.6f}", f"{lng:.6f}", source])
 
-    def _fetch_missing(self, rows, places, overrides):
+    def _fetch_missing(self, rows, places, overrides):  # pylint: disable=too-many-locals  # linear fetch loop
         missing = sorted(
             {(r["City"], r["State"]) for r in rows if self._locate(r, places, overrides) is None}
         )
@@ -179,7 +183,9 @@ class Command(BaseCommand):
             query = urllib.parse.urlencode(
                 {"city": city, "state": state, "countrycodes": country, "format": "json", "limit": 1}
             )
-            request = urllib.request.Request(f"{NOMINATIM_URL}?{query}", headers={"User-Agent": USER_AGENT})  # noqa: S310  fixed https URL
+            url = f"{NOMINATIM_URL}?{query}"
+            # fixed https URL
+            request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})  # noqa: S310
             with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310  fixed https URL
                 hits = json.load(response)
             min_lat, max_lat, min_lng, max_lng = NOMINATIM_BOXES[country]
@@ -203,7 +209,7 @@ class Command(BaseCommand):
             return lat, lng, DEFAULT_RADIUS_MILES, source
         return None
 
-    def _write_locations(self, rows, places, overrides):
+    def _write_locations(self, rows, places, overrides):  # pylint: disable=too-many-locals  # linear write pass
         located, unmatched = {}, set()
         for row in rows:
             key = (normalize(row["City"]), row["State"])

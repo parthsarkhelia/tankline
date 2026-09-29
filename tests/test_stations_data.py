@@ -71,7 +71,8 @@ def test_load_stations_joins_prices_to_committed_locations(tmp_path, client):
     [("lexington", "KY"), ("macon", "GA"), ("boise", "ID"), ("butte", "MT"), ("st louis", "MO")],
 )
 def test_consolidated_cities_resolve_offline(text, state):
-    from stations.geo import places_index
+    # Lazy: keeps the index build out of collection time.
+    from stations.geo import places_index  # pylint: disable=import-outside-toplevel
 
     assert any(p.state == state for p in places_index().get(text, []))
 

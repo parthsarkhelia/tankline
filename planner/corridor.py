@@ -31,7 +31,9 @@ def simplify_route(route_lnglat, tolerance_deg=0.001):
     return shapely.get_coordinates(shapely.simplify(shapely.linestrings(route_lnglat), tolerance_deg))
 
 
-def place_stations(route_lnglat, route_miles, st_lng, st_lat, max_offset):
+def place_stations(  # pylint: disable=too-many-locals  # vectorised projection keeps its arrays together
+    route_lnglat, route_miles, st_lng, st_lat, max_offset
+):
     """Project stations onto the route; keep those within their own max_offset (miles)."""
     empty = Placement(*(np.array([], dtype=t) for t in (int, float, float, float, float)))
     if len(st_lng) == 0 or len(route_lnglat) < 2:

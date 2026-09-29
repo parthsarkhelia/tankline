@@ -7,7 +7,8 @@ os.environ["ROUTING_PROVIDER"] = "ors"  # every provider call in tests is a reco
 os.environ.pop("POSTGRES_HOST", None)
 os.environ.pop("REDIS_URL", None)
 
-from .settings import *  # noqa: E402,F403
+# The environment must be set before the base settings load.
+from .settings import *  # noqa: E402,F403  # pylint: disable=wildcard-import,wrong-import-position,unused-wildcard-import
 
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 REST_FRAMEWORK = {**REST_FRAMEWORK, "DEFAULT_THROTTLE_RATES": {"anon": "10000/min"}}  # noqa: F405

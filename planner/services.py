@@ -58,7 +58,7 @@ def station_table():
 
 
 @lru_cache(maxsize=1)
-def _load_table(version):
+def _load_table(version):  # pylint: disable=unused-argument  # version is the lru_cache key
     rows = tuple(Station.objects.order_by("opis_id"))
     radius = np.array([s.radius_miles for s in rows], dtype=float)
     return StationTable(
@@ -70,7 +70,7 @@ def _load_table(version):
     )
 
 
-def plan_trip(start, finish, start_fuel_miles=0.0):
+def plan_trip(start, finish, start_fuel_miles=0.0):  # pylint: disable=too-many-locals  # one linear pipeline
     started = time.perf_counter()
     origin, calls_a = resolve(start)
     destination, calls_b = resolve(finish)

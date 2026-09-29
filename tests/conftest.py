@@ -19,7 +19,8 @@ def no_network(monkeypatch):
 @pytest.fixture(autouse=True)
 def empty_cache():
     """Routes, plans, throttle history and the ORS day counter start empty in every test."""
-    from django.core.cache import cache
+    # Lazy: needs configured settings.
+    from django.core.cache import cache  # pylint: disable=import-outside-toplevel
 
     cache.clear()
 

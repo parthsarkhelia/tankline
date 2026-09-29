@@ -16,7 +16,7 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture(autouse=True)
-def stations(load_stations):
+def stations(load_stations):  # pylint: disable=unused-argument  # fixture requested for its side effect
     """Synthetic sample stations for every test in this module."""
 
 

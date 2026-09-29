@@ -90,7 +90,9 @@ def random_case(rng):
     return candidates, length, start_fuel, tank
 
 
-def simulate(purchases, candidates, length, start_fuel, tank, min_fill):
+def simulate(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # mirrors plan_purchases inputs
+    purchases, candidates, length, start_fuel, tank, min_fill
+):
     """Drive the plan: fuel never negative or above the tank, and the fill rule holds."""
     bought = {p.candidate.key: p for p in purchases}
     fuel, previous = start_fuel + sum(p.reserve for p in purchases), 0
@@ -102,7 +104,7 @@ def simulate(purchases, candidates, length, start_fuel, tank, min_fill):
             p = bought.pop(c.key)
             fuel += p.fuel
             assert fuel <= tank
-            small_ok = fuel == tank or fuel == length - c.position
+            small_ok = fuel in (tank, length - c.position)
             assert p.fuel == 0 and p.reserve > 0 or p.fuel >= min_fill or small_ok
     assert not bought
 
