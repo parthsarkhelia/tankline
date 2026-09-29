@@ -1,0 +1,40 @@
+services:
+  web:
+    build: .
+    env_file: [{path: .env, required: false}]  # optional; interpolation below carries .env values
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: tankline
+      POSTGRES_USER: tankline
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tankline}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-compose-only-not-secret}  # local runs only; it signs nothing here (no sessions, auth or CSRF)
+      ROUTING_PROVIDER: ${ROUTING_PROVIDER:-osrm}
+      ORS_API_KEY: ${ORS_API_KEY:-}
+      REDIS_URL: redis://redis:6379/0
+    ports: ["127.0.0.1:${TANKLINE_PORT:-8000}:8000"]  # this machine only; db and redis publish no ports at all
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 10s
+      retries: 6
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: tankline
+      POSTGRES_USER: tankline
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tankline}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tankline"]
+      interval: 5s
+      retries: 10
+  redis:
+    image: redis:8-alpine
+    # Keep pre-warmed routes across restarts; cap memory so many distinct routes cannot fill the host.
+    command: ["redis-server", "--save", "60", "1", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes: [redisdata:/data]
+volumes:
+  pgdata:
+  redisdata:

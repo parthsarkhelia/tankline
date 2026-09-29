@@ -138,3 +138,13 @@ def test_osrm_non_object_body_is_502(settings):
     responses.get(OSRM_CHI_STL, json=["unexpected"])
     with pytest.raises(UpstreamUnavailable):
         routing.fetch_route(*CHI, *STL)
+
+
+@responses.activate
+def test_ors_without_key_uses_osrm_only(settings):
+    settings.ROUTING_PROVIDER = "ors"
+    settings.ORS_API_KEY = ""
+    responses.get(OSRM_CHI_STL, json=fixture("osrm_chicago_stl"))
+    route, calls = routing.fetch_route(*CHI, *STL)
+    assert (route.provider, calls) == ("osrm", 1)
+    assert [c.request.url.split("?")[0] for c in responses.calls] == [OSRM_CHI_STL]

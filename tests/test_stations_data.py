@@ -101,3 +101,22 @@ def test_load_stations_accepts_zero_padded_duplicate_ids(tmp_path):
     )
     call_command("load_stations", csv=str(path), verbosity=0)
     assert [(s.opis_id, s.price) for s in Station.objects.all()] == [(910009, Decimal("3.40"))]
+
+
+def test_padded_header_names_are_accepted(tmp_path):
+    path = tmp_path / "padded.csv"
+    path.write_text(
+        "OPIS Truckstop ID ,Truckstop Name    ,Address,City ,State,Rack ID,Retail Price \n"
+        "910001, SAMPLE STOP A ,1 Test Rd,Chicago,IL,1,3.459\n"
+    )
+    assert read_price_rows(path) == [
+        {
+            "OPIS Truckstop ID": "910001",
+            "Truckstop Name": "SAMPLE STOP A",
+            "Address": "1 Test Rd",
+            "City": "Chicago",
+            "State": "IL",
+            "Rack ID": "1",
+            "Retail Price": "3.459",
+        }
+    ]

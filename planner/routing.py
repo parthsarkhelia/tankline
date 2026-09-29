@@ -63,9 +63,12 @@ def ors_budget_left():
 def fetch_route(start_lat, start_lng, finish_lat, finish_lng):
     """Return (Route, external_calls)."""
     points = (start_lat, start_lng, finish_lat, finish_lng)
-    if settings.ROUTING_PROVIDER == "ors" and not ors_budget_left():
+    use_ors = settings.ROUTING_PROVIDER == "ors" and bool(
+        settings.ORS_API_KEY
+    )  # no key: OSRM, no budget spent
+    if use_ors and not ors_budget_left():
         log.warning("daily openrouteservice budget spent, using OSRM")
-    elif settings.ROUTING_PROVIDER == "ors":
+    elif use_ors:
         try:
             return _ors_route(*points), 1
         except _TryFallback as exc:

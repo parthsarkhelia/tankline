@@ -28,11 +28,13 @@ class CsvLocation:
 
 def read_price_rows(path):
     with Path(path).open(encoding="utf-8-sig", newline="") as fh:
-        reader = csv.DictReader(fh)
-        missing = [c for c in COLUMNS if c not in (reader.fieldnames or [])]
+        reader = csv.reader(fh, skipinitialspace=True)  # quoted fields may follow a padding space
+        header = [h.strip() for h in next(reader, [])]  # spreadsheets re-save with padded names
+        missing = [c for c in COLUMNS if c not in header]
         if missing:
             raise ValueError(f"CSV is missing columns: {', '.join(missing)}")
-        return [{c: (row[c] or "").strip() for c in COLUMNS} for row in reader]
+        index = {c: header.index(c) for c in COLUMNS}
+        return [{c: (row[i] if i < len(row) else "").strip() for c, i in index.items()} for row in reader]
 
 
 def dedupe_lowest_price(rows):

@@ -8,3 +8,5 @@ db.sqlite3
 .ruff_cache/
 data/*
 !data/.gitkeep
+!data/fuel-prices.csv
+.DS_Store
