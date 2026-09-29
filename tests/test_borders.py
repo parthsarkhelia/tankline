@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 
 from planner.borders import country_codes, load_borders
-from stations.geo import BORDERS_FILE
 
 
 @pytest.fixture
@@ -41,7 +40,6 @@ def test_empty_input(borders):
     assert country_codes(np.array([]), np.array([]), borders).size == 0
 
 
-@pytest.mark.skipif(not BORDERS_FILE.exists(), reason="borders.geojson arrives with the station-data task")
 def test_committed_file_knows_detroit_and_windsor():
     codes = country_codes(np.array([-83.0458, -83.0364]), np.array([42.3314, 42.3149]))
     assert list(codes) == ["US", "CA"]
