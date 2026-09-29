@@ -47,7 +47,8 @@ docker compose up --build
 ```
 
 No `.env` is needed. Optionally `cp .env.example .env`, add an ORS key and set `ROUTING_PROVIDER=ors`
-for truck routing; compose picks it up.
+for truck routing; compose picks it up. Without a key the app uses the public OSRM server (car profile)
+automatically. Port 8000 busy? `TANKLINE_PORT=8080 docker compose up --build`.
 
 On start the container migrates the database, loads the stations from the CSV and starts gunicorn.
 When it is up:

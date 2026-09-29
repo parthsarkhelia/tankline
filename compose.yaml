@@ -11,7 +11,7 @@ services:
       ROUTING_PROVIDER: ${ROUTING_PROVIDER:-osrm}
       ORS_API_KEY: ${ORS_API_KEY:-}
       REDIS_URL: redis://redis:6379/0
-    ports: ["127.0.0.1:8000:8000"]  # this machine only; db and redis publish no ports at all
+    ports: ["127.0.0.1:${TANKLINE_PORT:-8000}:8000"]  # this machine only; db and redis publish no ports at all
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_started }

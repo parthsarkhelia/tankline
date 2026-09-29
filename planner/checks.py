@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.core.checks import Error, register
+from django.core.checks import Error, Warning, register
 
 
 @register()
@@ -8,10 +8,10 @@ def routing_settings(app_configs, **kwargs):
         return [Error("ROUTING_PROVIDER must be 'ors' or 'osrm'.", id="planner.E002")]
     if settings.ROUTING_PROVIDER == "ors" and not settings.ORS_API_KEY:
         return [
-            Error(
-                "ORS_API_KEY is not set.",
-                hint="Add it to .env, or set ROUTING_PROVIDER=osrm to use the public OSRM server only.",
-                id="planner.E001",
+            Warning(
+                "ROUTING_PROVIDER is 'ors' but ORS_API_KEY is not set.",
+                hint="Routing will use the public OSRM server; add ORS_API_KEY for truck routing.",
+                id="planner.W001",
             )
         ]
     return []
