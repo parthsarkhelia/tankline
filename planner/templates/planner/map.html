@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tankline route</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <style>
+    html, body, #map { height: 100%; margin: 0; font: 14px system-ui, sans-serif; }
+    .panel { position: absolute; z-index: 1000; top: 10px; right: 10px; background: #fff; padding: 10px 12px;
+             border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.3); max-width: 280px; }
+    .error { margin: 2rem; color: #9c3226; }
+  </style>
+</head>
+<body>
+{% if error %}
+  <p class="error">{{ error }}</p>
+{% else %}
+  <div id="map"></div>
+  <div class="panel">
+    <strong>{{ trip.start.name }} → {{ trip.finish.name }}</strong><br>
+    {{ trip.route.distance_miles }} mi · {{ trip.summary.stops }} stop{{ trip.summary.stops|pluralize }} ·
+    ${{ trip.summary.total_cost }}
+  </div>
+  {{ trip|json_script:"trip" }}
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const trip = JSON.parse(document.getElementById("trip").textContent);
+    const map = L.map("map");
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+    const line = L.polyline(trip.route.geometry.coordinates.map(([lng, lat]) => [lat, lng]), { weight: 4 }).addTo(map);
+    map.fitBounds(line.getBounds(), { padding: [20, 20] });
+
+    function popup(lines) {  // text nodes only: station names never become HTML
+      const box = document.createElement("div");
+      lines.forEach((text, i) => {
+        if (i) box.appendChild(document.createElement("br"));
+        box.appendChild(document.createTextNode(text));
+      });
+      return box;
+    }
+    for (const place of [trip.start, trip.finish]) {
+      L.circleMarker([place.lat, place.lng], { radius: 7, color: "#13171a" }).addTo(map).bindPopup(popup([place.name]));
+    }
+    for (const s of trip.fuel_stops) {
+      L.marker([s.lat, s.lng]).addTo(map).bindPopup(popup([
+        `Stop ${s.stop}: ${s.name}`, `${s.city}, ${s.state}`,
+        `$${s.price_per_gallon}/gal · ${s.gallons} gal · $${s.cost}`, `Mile ${s.mile}`,
+      ]));
+    }
+  </script>
+{% endif %}
+</body>
+</html>
