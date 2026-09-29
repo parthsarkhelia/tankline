@@ -6,3 +6,5 @@ db.sqlite3
 .cache/
 .pytest_cache/
 .ruff_cache/
+data/*
+!data/.gitkeep
