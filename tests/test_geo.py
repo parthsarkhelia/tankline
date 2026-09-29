@@ -1,3 +1,5 @@
+import pytest
+
 from stations.geo import normalize, place_keys
 
 
@@ -18,3 +20,24 @@ def test_place_keys_strip_census_suffixes_once():
     assert "macon" in place_keys("Macon-Bibb County")
     assert "butte" in place_keys("Butte-Silver Bow (balance)")
     assert "winston" not in place_keys("Winston-Salem city")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Saint-Liboire",
+        "St. Louis",
+        "Ft. Worth",
+        "Mt. Vernon",
+        "Mc Calla",
+        "Coeur d'Alene",
+        "Winston-Salem",
+        "  SAINT  PAUL ",
+    ],
+)
+def test_normalize_is_idempotent(text):
+    assert normalize(normalize(text)) == normalize(text)
+
+
+def test_saint_hyphen_matches_st():
+    assert normalize("Saint-Liboire") == normalize("St Liboire") == "st liboire"

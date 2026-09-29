@@ -1,0 +1,222 @@
+city,state,lat,lng,source
+abbotsford,BC,49.052116,-122.329479,nominatim
+airdrie,AB,51.285970,-114.010620,nominatim
+alvada,OH,41.050332,-83.401869,nominatim
+amite,LA,30.726575,-90.508982,nominatim
+antioch,TN,36.060060,-86.672219,nominatim
+ayr,ON,43.285512,-80.450701,nominatim
+balgonie,SK,50.489276,-104.266906,nominatim
+batesburg,SC,33.907920,-81.547326,nominatim
+belden,MS,34.310383,-88.788389,nominatim
+belleville,ON,44.163326,-77.385256,nominatim
+bethany,LA,32.373768,-94.037965,nominatim
+blakeslee,PA,41.092513,-75.592668,nominatim
+bois d arc,MO,37.256438,-93.507696,nominatim
+brampton,ON,43.685832,-79.759937,nominatim
+brandon,MB,49.851114,-99.960892,nominatim
+brantford,ON,43.140816,-80.263173,nominatim
+breezewood,PA,39.999012,-78.240422,nominatim
+bridgewater,MA,41.990221,-70.975443,nominatim
+brogue,PA,39.872355,-76.484639,nominatim
+brooks,AB,50.571027,-111.893005,nominatim
+burlington,ON,43.324892,-79.796684,nominatim
+calgary,AB,51.045606,-114.057541,nominatim
+candler,NC,35.544436,-82.683803,nominatim
+canon city,CO,38.442251,-105.234880,nominatim
+casa blanca,NM,35.046318,-107.471394,nominatim
+castle creek,NY,42.227575,-75.918253,nominatim
+cedar grove,TN,36.251720,-86.527772,nominatim
+chappell hill,TX,30.141529,-96.256719,nominatim
+chesterfield,VA,37.377793,-77.504670,nominatim
+chilliwack,BC,49.170979,-121.952550,nominatim
+clear brook,VA,39.256491,-78.096111,nominatim
+clines corners,NM,35.009498,-105.669180,nominatim
+cochrane,ON,49.066668,-81.017303,nominatim
+colgate,WI,43.192830,-88.206774,nominatim
+concord,ON,43.800362,-79.499388,nominatim
+cookstown,ON,44.189755,-79.701702,nominatim
+coquitlam,BC,49.284296,-122.793281,nominatim
+cranbrook,BC,49.510748,-115.767277,nominatim
+creston,BC,49.097405,-116.513093,nominatim
+cross junction,VA,39.320378,-78.293338,nominatim
+curtis bay,MD,39.225219,-76.590031,nominatim
+dartmouth,NS,44.679971,-63.572023,nominatim
+davidson,SK,51.263985,-105.987459,nominatim
+dawson creek,BC,55.760531,-120.236445,nominatim
+de witt,IA,41.824264,-90.538127,nominatim
+delta,BC,49.084626,-123.057938,nominatim
+denmark,TN,35.532855,-89.003952,nominatim
+dewey,AZ,34.529755,-112.242115,nominatim
+diamond,OH,41.098946,-81.022871,nominatim
+doswell,VA,37.860140,-77.464149,nominatim
+drewryville,VA,36.715705,-77.306360,nominatim
+drums,PA,41.018139,-75.994925,nominatim
+dryden,ON,49.785698,-92.835846,nominatim
+dugald,MB,49.885717,-96.842823,nominatim
+dumont,CO,39.764689,-105.600337,nominatim
+eastaboga,AL,33.605937,-86.021359,nominatim
+edmonton,AB,53.546205,-113.491241,nominatim
+edson,AB,53.585866,-116.442847,nominatim
+edwards,IL,40.745870,-89.744270,nominatim
+elizabethport,NJ,40.650103,-74.187089,nominatim
+ellabell,GA,32.123537,-81.485667,nominatim
+ellenwood,GA,33.610110,-84.287978,nominatim
+etobicoke,ON,43.643556,-79.565633,nominatim
+fackler,AL,34.792583,-85.909977,nominatim
+feasterville trevose,PA,40.148406,-74.993473,nominatim
+fort erie,ON,42.913080,-78.918611,nominatim
+fort mcmurray,AB,56.729200,-111.388522,nominatim
+fort nelson,BC,58.804835,-122.701459,nominatim
+fort saskatchewan,AB,53.712857,-113.214894,nominatim
+fort st john,BC,56.252757,-120.847206,nominatim
+fortson,GA,33.377891,-84.288812,nominatim
+franksville,WI,42.760019,-87.913413,nominatim
+gansevoort,NY,43.196205,-73.651397,nominatim
+gladstone,VA,37.546809,-78.849462,nominatim
+glendale,KY,37.601728,-85.905519,nominatim
+glenmont,NY,42.604802,-73.769566,nominatim
+gloucester,ON,45.354631,-75.601766,nominatim
+grande prairie,AB,55.171080,-118.794987,nominatim
+grassy butte,ND,47.392514,-103.247966,nominatim
+greentown,PA,41.321755,-75.305459,nominatim
+grovertown,IN,41.375043,-86.504734,nominatim
+gum spring,VA,37.775526,-77.896811,nominatim
+hamilton,ON,43.256080,-79.872858,nominatim
+hamptonville,NC,36.098468,-80.760345,nominatim
+hankamer,TX,29.858276,-94.626862,nominatim
+hanna,AB,51.644557,-111.927479,nominatim
+harpursville,NY,42.178412,-75.624630,nominatim
+hartford,TN,35.816765,-83.143207,nominatim
+headingley,MB,49.868087,-97.391052,nominatim
+heiskell,TN,36.081816,-84.053982,nominatim
+henrico,VA,37.629476,-77.518903,nominatim
+hinton,AB,53.399051,-117.588677,nominatim
+hogansburg,NY,44.973936,-74.663242,nominatim
+hope,BC,49.379978,-121.441585,nominatim
+hornby,ON,43.568529,-79.841421,nominatim
+hunt valley,MD,39.492261,-76.658953,nominatim
+hurricane mills,TN,35.971174,-87.781969,nominatim
+inglewood,ON,43.796428,-79.933482,nominatim
+irving,NY,42.567559,-79.112817,nominatim
+irvington,AL,30.506862,-88.233892,nominatim
+isom,KY,37.187876,-82.898772,nominatim
+ivydale,WV,38.310097,-81.704569,nominatim
+jaffray,BC,49.371094,-115.301039,nominatim
+jean,NV,35.778857,-115.324382,nominatim
+joelton,TN,36.313108,-86.865277,nominatim
+kamloops,BC,50.675827,-120.339415,nominatim
+kapuskasing,ON,49.416667,-82.433333,nominatim
+kearneysville,WV,39.388156,-77.885552,nominatim
+kingston,ON,44.230687,-76.481323,nominatim
+kitchener,ON,43.451291,-80.492782,nominatim
+kitwanga,BC,55.100373,-128.067627,nominatim
+knoxville,AL,33.591772,-85.897188,nominatim
+kodak,TN,35.974532,-83.626840,nominatim
+la place,LA,32.378473,-85.862734,nominatim
+la salle,IL,41.333368,-89.091750,nominatim
+lake ariel,PA,41.453975,-75.382681,nominatim
+lambsburg,VA,36.585408,-80.761182,nominatim
+lancaster,ON,45.141266,-74.499949,nominatim
+lanexa,VA,37.423757,-76.901075,nominatim
+larsen,WI,44.191650,-88.623999,nominatim
+lawrence,MS,32.325144,-89.232839,nominatim
+leesville,SC,33.916532,-81.513437,nominatim
+lenorah,TX,32.304560,-101.876248,nominatim
+lethbridge,AB,49.694578,-112.833103,nominatim
+linwood,NC,35.750694,-80.317831,nominatim
+lloydminster,AB,53.279995,-110.008850,nominatim
+london,ON,42.983675,-81.249607,nominatim
+maxwell,TX,29.881897,-97.795642,nominatim
+medicine hat,AB,50.043030,-110.679016,nominatim
+middlebury center,PA,41.843684,-77.274420,nominatim
+middlesboro,KY,36.607297,-83.714332,nominatim
+middleton,MI,43.183366,-84.708889,nominatim
+midland,GA,32.574861,-84.827152,nominatim
+milldale,CT,41.566137,-72.899967,nominatim
+millersville,MD,39.059554,-76.648022,nominatim
+milltown,MT,46.871295,-113.881719,nominatim
+milton,ON,43.513671,-79.882817,nominatim
+mineral wells,WV,39.190408,-81.532077,nominatim
+mississauga,ON,43.588473,-79.643658,nominatim
+moapa,NV,36.667365,-114.584977,nominatim
+moncton,NB,46.098568,-64.800427,nominatim
+monroeton,PA,41.712575,-76.474665,nominatim
+moose jaw,SK,50.396721,-105.535666,nominatim
+mount nebo,WV,39.602305,-79.707830,nominatim
+nanton,AB,50.348199,-113.770256,nominatim
+napanee,ON,44.247388,-76.950554,nominatim
+new boston,MI,42.162541,-83.402989,nominatim
+new hampton,NY,41.409866,-74.411744,nominatim
+new westminster,BC,49.206773,-122.910882,nominatim
+newburg,MD,38.377348,-76.953305,nominatim
+newport,MI,42.002267,-83.308542,nominatim
+newton lower falls,MA,42.325800,-71.256341,nominatim
+nisku,AB,53.333333,-113.533333,nominatim
+north billerica,MA,42.585262,-71.287764,nominatim
+north jackson,OH,41.100127,-80.857174,nominatim
+north oxford,MA,42.150095,-71.868405,nominatim
+nottingham,MD,39.363996,-76.452184,nominatim
+oldcastle,ON,42.226326,-82.958005,nominatim
+orla,TX,31.825015,-103.909010,nominatim
+orono,ON,43.975028,-78.616447,nominatim
+ottawa lake,MI,41.764152,-83.749387,nominatim
+pendleton,KY,38.462288,-85.303568,nominatim
+pickering,ON,43.835765,-79.090576,nominatim
+pioneer,TN,36.417580,-84.314099,nominatim
+portage la prairie,MB,49.972422,-98.289185,nominatim
+prince george,BC,53.912864,-122.745370,nominatim
+providence forge,VA,37.442426,-77.043958,nominatim
+pryor,OK,36.308428,-95.316914,nominatim
+quesnel,BC,52.979428,-122.493627,nominatim
+quinton,VA,37.532789,-77.115445,nominatim
+rabun gap,GA,34.957214,-83.386454,nominatim
+raphine,VA,37.937355,-79.232810,nominatim
+red deer,AB,52.269063,-113.814146,nominatim
+regina,SK,50.447973,-104.615876,nominatim
+ridgedale,MO,36.503954,-93.223792,nominatim
+rising fawn,GA,34.760079,-85.531076,nominatim
+roans prairie,TX,30.583655,-95.943324,nominatim
+rockville,VA,37.725978,-77.678324,nominatim
+rosedale,VA,36.959278,-81.931235,nominatim
+round o,SC,32.937115,-80.540935,nominatim
+ruther glen,VA,37.940875,-77.461865,nominatim
+s coffeyville,OK,36.994525,-95.620255,nominatim
+sainte genevieve,MO,37.981442,-90.041779,nominatim
+sarnia,ON,42.974382,-82.403533,nominatim
+saskatoon,SK,52.131802,-106.660767,nominatim
+sault sainte marie,MI,46.497673,-84.347658,nominatim
+sault ste marie,ON,46.512655,-84.333030,nominatim
+sawyer,MI,41.885321,-86.589467,nominatim
+sherwood park,AB,53.525696,-113.296631,nominatim
+skippers,VA,36.611817,-77.546646,nominatim
+smiths creek,MI,42.913919,-82.603808,nominatim
+st croix,IN,38.223953,-86.586339,nominatim
+st liboire,QC,45.652493,-72.760143,nominatim
+ste agathe,MB,49.566815,-97.182039,nominatim
+sudbury,ON,46.492720,-80.991211,nominatim
+summerfield,FL,29.008592,-82.034809,nominatim
+supply,NC,34.017672,-78.267499,nominatim
+tafton,PA,41.404534,-75.182953,nominatim
+teays,WV,38.441757,-81.952912,nominatim
+tilbury,ON,42.259315,-82.432268,nominatim
+tinnie,NM,33.370556,-105.226367,nominatim
+townsend,VA,37.184981,-75.958473,nominatim
+troy,VA,37.950974,-78.246393,nominatim
+valleyview,AB,55.066667,-117.283333,nominatim
+waddy,KY,38.137015,-85.074398,nominatim
+wall,TX,31.374346,-100.303660,nominatim
+waterfall,PA,40.127583,-78.062782,nominatim
+watson lake,YT,60.062431,-128.706804,nominatim
+west chesterfield,NH,42.904248,-72.515645,nominatim
+west coxsackie,NY,42.360640,-73.816792,nominatim
+west helena,AR,34.544012,-90.642619,nominatim
+westover,MD,38.124011,-75.706317,nominatim
+whitecourt,AB,54.142457,-115.684650,nominatim
+whitehorse,YT,60.721571,-135.054932,nominatim
+willow beach,AZ,35.869780,-114.660065,nominatim
+windsor,ON,42.316740,-83.037339,nominatim
+winnabow,NC,34.149337,-78.093605,nominatim
+winnipeg,MB,49.895537,-97.138458,nominatim
+woodford,VA,38.113189,-77.408871,nominatim
+wyoming,ON,42.949297,-82.118733,nominatim
+yorkton,SK,51.212045,-102.461243,nominatim

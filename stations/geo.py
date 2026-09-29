@@ -27,10 +27,7 @@ US_STATES = {
 }  # fmt: skip
 CANADIAN_PROVINCES = frozenset({"AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"})
 
-_ABBREVIATIONS = (
-    (" saint ", " st "), (" st. ", " st "), (" ft. ", " fort "), (" ft ", " fort "),
-    (" mt. ", " mount "), (" mt ", " mount "),
-)  # fmt: skip
+_ABBREVIATIONS = ((" saint ", " st "), (" ft ", " fort "), (" mt ", " mount "))
 # Census appends a legal/statistical area type ("city", "CDP", ...) to every NAME.
 AREA_SUFFIX = re.compile(
     r"\s+(city and borough|charter township|city|town|village|cdp|borough|township|municipality"
@@ -43,11 +40,12 @@ _CITY_COUNTY = re.compile(r"^([^-/]+)[-/].*(\bcounty\b|\bgovernment\b|\(balance\
 
 
 def normalize(text):
-    """Lower-case, expand common abbreviations, drop punctuation, collapse spaces."""
-    s = f" {text.strip().lower()} "
+    """Lower-case, drop punctuation, expand common abbreviations, collapse spaces. Idempotent."""
+    s = re.sub(r"\s+", " ", text.lower().replace(".", "").replace("'", "").replace("-", " ")).strip()
+    s = f" {s} "
     for old, new in _ABBREVIATIONS:
-        s = s.replace(old, new)
-    s = s.replace(".", "").replace("'", "").replace("-", " ")
+        while old in s:  # str.replace skips overlapping matches ("saint saint")
+            s = s.replace(old, new)
     s = re.sub(r"\bmc ", "mc", s)
     return re.sub(r"\s+", " ", s).strip()
 
