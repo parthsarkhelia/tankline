@@ -183,7 +183,7 @@ class Command(BaseCommand):
             with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310  fixed https URL
                 hits = json.load(response)
             min_lat, max_lat, min_lng, max_lng = NOMINATIM_BOXES[country]
-            lat, lng = (float(hits[0]["lat"]), float(hits[0]["lon"])) if hits else (None, None)
+            lat, lng = (float(hits[0]["lat"]), float(hits[0]["lon"])) if hits else (0.0, 0.0)
             if hits and min_lat <= lat <= max_lat and min_lng <= lng <= max_lng:
                 found[(normalize(city), state)] = (lat, lng, "nominatim")
             else:

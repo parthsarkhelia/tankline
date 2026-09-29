@@ -27,7 +27,9 @@ def test_ors_route_parsed_in_miles():
     assert 280 < route.distance_miles < 310
     assert route.coordinates.shape[1] == 2
     assert responses.calls[0].request.headers["Authorization"] == "test-key"
-    body = json.loads(responses.calls[0].request.body)
+    raw = responses.calls[0].request.body
+    assert isinstance(raw, bytes)
+    body = json.loads(raw)
     assert body["coordinates"] == [[CHI[1], CHI[0]], [STL[1], STL[0]]]  # lng, lat
     assert body["radiuses"] == [5000, 5000]
 
@@ -88,9 +90,9 @@ def test_geocode_us_restricts_country_and_sends_text_as_param():
     responses.get(routing.ORS_GEOCODE_URL, json=fixture("ors_geocode_breezewood"))
     found, calls = routing.geocode_us("Breezewood, PA/../../v2?x=1")
     assert calls == 1 and found is not None
-    request = responses.calls[0].request
-    assert request.url.startswith(routing.ORS_GEOCODE_URL + "?")
-    assert "boundary.country=US" in request.url
+    url = responses.calls[0].request.url or ""
+    assert url.startswith(routing.ORS_GEOCODE_URL + "?")
+    assert "boundary.country=US" in url
 
 
 def test_geocode_us_without_key_makes_no_call(settings):
@@ -147,4 +149,4 @@ def test_ors_without_key_uses_osrm_only(settings):
     responses.get(OSRM_CHI_STL, json=fixture("osrm_chicago_stl"))
     route, calls = routing.fetch_route(*CHI, *STL)
     assert (route.provider, calls) == ("osrm", 1)
-    assert [c.request.url.split("?")[0] for c in responses.calls] == [OSRM_CHI_STL]
+    assert [(c.request.url or "").split("?")[0] for c in responses.calls] == [OSRM_CHI_STL]
