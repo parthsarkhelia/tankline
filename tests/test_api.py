@@ -9,13 +9,8 @@ from rest_framework.throttling import AnonRateThrottle
 from planner import routing
 
 FIXTURES = Path(__file__).parent / "fixtures"
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("load_stations")]
 URL = "/api/v1/plan/"
-
-
-@pytest.fixture(autouse=True)
-def stations(load_stations):  # pylint: disable=unused-argument  # fixture requested for its side effect
-    """Synthetic sample stations for every test in this module."""
 
 
 def ors(name):

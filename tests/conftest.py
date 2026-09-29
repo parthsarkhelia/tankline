@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from django.core.cache import cache
 from django.core.management import call_command
 
 SAMPLE_CSV = Path(__file__).parent / "fixtures" / "fuel-prices-sample.csv"
@@ -19,9 +20,6 @@ def no_network(monkeypatch):
 @pytest.fixture(autouse=True)
 def empty_cache():
     """Routes, plans, throttle history and the ORS day counter start empty in every test."""
-    # Lazy: needs configured settings.
-    from django.core.cache import cache  # pylint: disable=import-outside-toplevel
-
     cache.clear()
 
 

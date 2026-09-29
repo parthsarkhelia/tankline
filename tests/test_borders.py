@@ -1,4 +1,3 @@
-# pylint: disable=redefined-outer-name  # pytest fixtures are passed by name
 import json
 
 import numpy as np
@@ -7,8 +6,8 @@ import pytest
 from planner.borders import country_codes, load_borders
 
 
-@pytest.fixture
-def borders(tmp_path):
+@pytest.fixture(name="borders")
+def _borders(tmp_path):
     # Two boxes with a gap between them (like a river), US south, CA north.
     def box(x0, y0, x1, y1):
         return {"type": "Polygon", "coordinates": [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]]}
