@@ -169,7 +169,10 @@ Manual run on the real data (OSRM routing): Chicago, IL to Denver, CO is 1,002.7
 routing call. Repeated, it takes 1.9 ms with 0 external calls. Lookup tables are loaded once before the
 gunicorn workers fork (`--preload`), so the first request in each worker is not slower.
 
-Docker Compose figures: measured in the final verification step.
+Docker Compose figures, measured on an Apple Silicon laptop with OSRM routing: New York, NY to Los Angeles,
+CA takes 1.38 s cold (`elapsed_ms` 1375, 1 external call) and 4 ms end to end when cached (`elapsed_ms` 1, 0 external
+calls). Planning alone, with the route already cached and the fuel plan recomputed, takes about 90 to 130 ms for
+New York to Los Angeles (about 2,800 miles) and about 60 ms for Miami, FL to Seattle, WA, over the full station set.
 
 ## Development
 
