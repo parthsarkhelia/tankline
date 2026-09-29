@@ -43,9 +43,11 @@ included in the repository.
 ### Docker (Postgres and Redis included)
 
 ```bash
-cp .env.example .env        # optional: add an ORS key and set ROUTING_PROVIDER=ors for truck routing
 docker compose up --build
 ```
+
+No `.env` is needed. Optionally `cp .env.example .env`, add an ORS key and set `ROUTING_PROVIDER=ors`
+for truck routing; compose picks it up.
 
 On start the container migrates the database, loads the stations from the CSV and starts gunicorn.
 When it is up:

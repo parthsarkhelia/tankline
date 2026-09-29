@@ -1,12 +1,15 @@
 services:
   web:
     build: .
-    env_file: .env
+    env_file: [{path: .env, required: false}]  # optional; interpolation below carries .env values
     environment:
       POSTGRES_HOST: db
       POSTGRES_DB: tankline
       POSTGRES_USER: tankline
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tankline}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-compose-only-not-secret}  # local runs only; it signs nothing here (no sessions, auth or CSRF)
+      ROUTING_PROVIDER: ${ROUTING_PROVIDER:-osrm}
+      ORS_API_KEY: ${ORS_API_KEY:-}
       REDIS_URL: redis://redis:6379/0
     ports: ["127.0.0.1:8000:8000"]  # this machine only; db and redis publish no ports at all
     depends_on:
