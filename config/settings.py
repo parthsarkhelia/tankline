@@ -67,6 +67,7 @@ else:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+            "OPTIONS": {"MAX_ENTRIES": 10000},
             "LOCATION": BASE_DIR / ".cache" / "django",
         }
     }

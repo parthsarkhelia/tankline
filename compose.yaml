@@ -33,7 +33,7 @@ services:
   redis:
     image: redis:8-alpine
     # Keep pre-warmed routes across restarts; cap memory so many distinct routes cannot fill the host.
-    command: ["redis-server", "--save", "60", "1", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    command: ["redis-server", "--save", "60", "1", "--maxmemory", "256mb", "--maxmemory-policy", "volatile-lru"]
     volumes: [redisdata:/data]
 volumes:
   pgdata:

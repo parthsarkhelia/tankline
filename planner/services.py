@@ -1,6 +1,7 @@
 """One trip request: resolve places, fetch (or reuse) the route, choose fuel stops."""
 
 import time
+import uuid
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from functools import lru_cache
@@ -29,8 +30,9 @@ EMPTY_TANK_NOTE = (
 )
 RESERVE_NOTE = (
     "No station near the start: the truck runs {miles} miles on reserve to the first stop and repays it "
-    "there (reserve_gallons). Pass start_fuel_miles if it starts with fuel."
+    "there (reserve_gallons)."
 )
+START_FUEL_HINT = " Pass start_fuel_miles if it starts with fuel."
 
 
 @dataclass(frozen=True)
@@ -47,7 +49,7 @@ class StationTable:
 
 
 def stations_version():
-    return cache.get_or_set(STATIONS_VERSION_KEY, "initial", None)
+    return cache.get_or_set(STATIONS_VERSION_KEY, lambda: uuid.uuid4().hex, None)
 
 
 def station_table():
@@ -224,7 +226,8 @@ def _summary(length, stops, fuel):
 def _assumptions(stops, fuel):
     notes = [EMPTY_TANK_NOTE] if fuel == 0 else []
     if stops and Decimal(stops[0]["reserve_gallons"]) > 0:
-        notes.append(RESERVE_NOTE.format(miles=stops[0]["mile"]))
+        miles = round(stops[0]["mile"] - fuel / 10, 1)
+        notes.append(RESERVE_NOTE.format(miles=miles) + (START_FUEL_HINT if fuel == 0 else ""))
     return notes
 
 
