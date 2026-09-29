@@ -14,3 +14,20 @@ from django.core.wsgi import get_wsgi_application
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 application = get_wsgi_application()
+
+# Load lookup tables once in the master process (gunicorn --preload); forked workers share them.
+from django.db import DatabaseError, connections  # noqa: E402
+
+from planner.borders import default_borders  # noqa: E402
+from planner.services import station_table  # noqa: E402
+from stations.geo import places_index, zcta_index  # noqa: E402
+
+places_index()
+zcta_index()
+default_borders()
+try:
+    station_table()
+except DatabaseError:  # not migrated yet (first local run); the first request loads it
+    pass
+finally:
+    connections.close_all()  # forked workers must not share this connection
