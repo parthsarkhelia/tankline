@@ -6,12 +6,12 @@ from django.core.exceptions import ImproperlyConfigured
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-def env(name, default=None):
+def env(name: str, default: str = "") -> str:
     return os.environ.get(name, default)
 
 
 DEBUG = env("DJANGO_DEBUG", "0") == "1"
-SECRET_KEY = env("DJANGO_SECRET_KEY") or ("dev-only-insecure-key" if DEBUG else None)
+SECRET_KEY = env("DJANGO_SECRET_KEY") or ("dev-only-insecure-key" if DEBUG else "")
 if not SECRET_KEY:
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is off.")
 ALLOWED_HOSTS = [

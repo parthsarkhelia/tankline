@@ -36,7 +36,7 @@ class PlanView(APIView):
 
 def map_view(request):
     # A plain Django view, so DRF throttling would not run on its own; the map can trigger a routing call.
-    if not AnonRateThrottle().allow_request(Request(request), None):
+    if not AnonRateThrottle().allow_request(Request(request), APIView()):
         return render(
             request, "planner/map.html", {"error": "Too many requests. Please slow down."}, status=429
         )
