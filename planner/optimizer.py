@@ -43,9 +43,9 @@ def plan_purchases(candidates, length, start_fuel=0, tank=TANK_TENTHS, min_fill=
 
     Exact dynamic programme over fuel levels: for each station in route order it
     keeps the best (cost, stops) for every fuel level on arrival. A stop pumps
-    either nothing or at least `min_fill`, except a smaller purchase that is exactly
-    what reaches the destination. A truck that cannot reach the first station on its
-    start fuel runs on reserve and repays it there, on top of that stop's fill.
+    nothing, at least `min_fill`, or whatever fills the tank; a smaller purchase is also
+    allowed when it is exactly what reaches the destination. A truck that cannot reach
+    the first station on its start fuel runs on reserve and repays it there, on top of that stop's fill.
     """
     start_fuel = min(start_fuel, tank)
     if start_fuel >= length:
@@ -91,6 +91,14 @@ def plan_purchases(candidates, length, start_fuel=0, tank=TANK_TENTHS, min_fill=
             better = bought < leave[min_fill:]
             leave[min_fill:] = np.where(better, bought, leave[min_fill:])
             source[min_fill:] = np.where(better, run_arg[: len(g)], -1)
+        # A tank too full to take the minimum may still be topped up to full.
+        if 0 < min_fill:
+            topup = np.where(arrive < _INF, arrive + (tank - levels) * price * _STOP_WEIGHT + stop, _INF)
+            topup[tank] = _INF  # arriving full buys nothing
+            f = int(topup.argmin())
+            if topup[f] < leave[tank]:
+                leave[tank] = topup[f]
+                source[tank] = f
         sources.append(source)
 
         nxt = path[i + 1].position if i + 1 < len(path) else length
