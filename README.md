@@ -141,9 +141,8 @@ from further out than small towns.
 **Borders.** Canadian stations are kept in the data but are candidates only where the route itself is in
 Canada. A point of unknown country (water, border slivers) does not exclude a station.
 
-**Optimiser.** Fuel price along a route is linear in gallons, so a greedy rule is optimal: at each
-stop, if a cheaper station is within one tank, buy just enough to reach it, otherwise fill up and go to
-the cheapest station in range. Ties are resolved towards fewer stops.
+**Optimiser.** An exact dynamic programme over fuel levels finds the cheapest purchases under the
+minimum-fill rule. Cost ties go to the plan with fewer stops.
 
 ## Assumptions
 
@@ -155,6 +154,7 @@ the cheapest station in range. Ties are resolved towards fewer stops.
   corridor count as mile 0, so the trip begins with a fill at the cheapest of them.
 - With no station there, the truck runs on reserve to the first station and repays that fuel there
   (`reserve_gallons`), so every mile is paid for and no fill exceeds 50 gallons.
+- Minimum fill 10 gal per stop (a smaller final top-up is allowed when it is all the destination needs).
 - 422 `fuel_gap` only when a stretch has no station within 500 miles.
 - Cost only: no detour cost, tolls, hours of service or brand preferences.
 - Canadian stations count only while the route is in Canada. In the data, Sarnia diesel is $3.31 against
@@ -169,7 +169,7 @@ Manual run on the real data (OSRM routing): Chicago, IL to Denver, CO is 1,002.7
 routing call. Repeated, it takes 1.9 ms with 0 external calls. Lookup tables are loaded once before the
 gunicorn workers fork (`--preload`), so the first request in each worker is not slower.
 
-Figures measured under Docker Compose are filled in by the final check before submission.
+Docker Compose figures: measured in the final verification step.
 
 ## Development
 

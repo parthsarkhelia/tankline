@@ -42,6 +42,9 @@ def test_chicago_to_st_louis_end_to_end():
         bought = Decimal(stop["gallons"]) + Decimal(stop["reserve_gallons"])
         assert Decimal(stop["cost"]) == (bought * Decimal(stop["price_per_gallon"])).quantize(Decimal("0.01"))
         assert Decimal(stop["gallons"]) <= 50  # a fill never exceeds the tank
+    final = body["fuel_stops"][-1]
+    for stop in body["fuel_stops"]:  # minimum fill, unless it is the small final top-up or a reserve stop
+        assert Decimal(stop["gallons"]) >= 10 or stop is final or Decimal(stop["reserve_gallons"]) > 0
     miles = [s["mile"] for s in body["fuel_stops"]]
     assert miles == sorted(miles)
     assert all(s["country"] == "US" for s in body["fuel_stops"])

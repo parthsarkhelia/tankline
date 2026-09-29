@@ -153,7 +153,13 @@ def _choose_stops(route, length, fuel, start_zone):
     miles = dict(zip(placement.index.tolist(), placement.mile.tolist(), strict=True))
     try:
         purchases = plan_purchases(
-            candidates, length, start_fuel=fuel, tank=settings.VEHICLE_RANGE_MILES * 10
+            candidates,
+            length,
+            start_fuel=fuel,
+            tank=settings.VEHICLE_RANGE_MILES * 10,
+            min_fill=settings.VEHICLE_MIN_FILL_GALLONS
+            * settings.VEHICLE_MPG
+            * 10,  # gallons -> tenths of a mile
         )
     except RangeGapError as gap:
         if not candidates:
