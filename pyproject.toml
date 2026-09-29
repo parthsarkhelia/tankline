@@ -43,7 +43,7 @@ ignore = ["S101"]  # asserts are fine in tests
 "tests/*" = ["S"]
 
 [tool.pyright]
-typeCheckingMode = "basic"
+typeCheckingMode = "standard"
 pythonVersion = "3.14"
 include = ["."]
 exclude = [".venv", "**/migrations", ".cache"]

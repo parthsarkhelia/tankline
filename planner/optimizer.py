@@ -62,6 +62,7 @@ def plan_purchases(candidates, length, start_fuel=0, tank=TANK_TENTHS, min_fill=
     arrive = np.full(tank + 1, _INF, dtype=np.int64)
     arrive[start_fuel + reserve - path[0].position] = 0
     sources = []  # per station: arrival fuel behind each leaving level (-1 = none bought)
+    end_key, end_fuel = _INF, 0  # set by the last station; path is never empty
     best_finish = (_INF, None, None)  # key, station index, arrival fuel of a final small top-up
 
     for i, station in enumerate(path):
@@ -92,7 +93,7 @@ def plan_purchases(candidates, length, start_fuel=0, tank=TANK_TENTHS, min_fill=
             leave[min_fill:] = np.where(better, bought, leave[min_fill:])
             source[min_fill:] = np.where(better, run_arg[: len(g)], -1)
         # A tank too full to take the minimum may still be topped up to full.
-        if 0 < min_fill:
+        if min_fill > 0:
             topup = np.where(arrive < _INF, arrive + (tank - levels) * price * _STOP_WEIGHT + stop, _INF)
             topup[tank] = _INF  # arriving full buys nothing
             f = int(topup.argmin())
