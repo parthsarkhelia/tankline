@@ -226,9 +226,16 @@ def test_changing_the_stop_cost_never_serves_an_old_plan(settings, monkeypatch):
 
 @pytest.mark.parametrize(
     ("offset", "precision", "tenths"),
-    [(0.0, "exit", 2), (0.1, "station", 2), (1.0, "exit", 13), (0.0, "city", 0), (1.0, "city", 13)],
+    [
+        (0.0, "exit", 2),
+        (0.1, "station", 2),
+        (1.0, "exit", 13),
+        (0.0, "city", 10),
+        (0.5, "city", 10),
+        (1.0, "city", 13),
+    ],
 )
-def test_detour_is_road_factor_times_offset_with_a_ramp_floor(offset, precision, tenths):
+def test_detour_is_road_factor_times_offset_with_a_floor(offset, precision, tenths):
     assert services.detour_tenths(offset, precision != "city") == tenths
 
 

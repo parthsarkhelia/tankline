@@ -21,20 +21,20 @@ request on the real price list with OSRM routing.
     "profile": "driving"
   },
   "fuel_stops": [
-    { "stop": 1, "name": "SHELL", "city": "Detroit", "state": "MI", "price_per_gallon": "3.699", "mile": 0.0, "off_route_miles": 0.0, "detour_miles": 0.0, "gallons": "27.75", "reserve_gallons": "0.00", "cost": "102.65", "location_precision": "city" }
+    { "stop": 1, "name": "EXXON", "city": "Redford", "state": "MI", "price_per_gallon": "3.699", "mile": 10.7, "off_route_miles": 0.7, "detour_miles": 2.0, "gallons": "27.85", "reserve_gallons": "0.10", "cost": "103.39", "location_precision": "city" }
   ],
   "summary": {
     "stops": 1,
-    "gallons_purchased": "27.75",
-    "gallons_burned": "27.75",
-    "total_cost": "102.65",
+    "gallons_purchased": "27.95",
+    "gallons_burned": "27.95",
+    "total_cost": "103.39",
     "start_fuel_miles": 0.0,
     "range_miles": 500,
     "mpg": 10,
     "stop_cost_usd": "18.00",
     "detour_cost_per_mile_usd": "1.854",
-    "detour_miles": 0.0,
-    "route_miles_driven": 277.5
+    "detour_miles": 2.0,
+    "route_miles_driven": 279.5
   },
   "assumptions": [
     "Assumes the truck starts with an empty tank and fills up at the station near the start that makes the trip cheapest; ..."
@@ -42,7 +42,7 @@ request on the real price list with OSRM routing.
   "meta": {
     "external_calls": 1,
     "cache_hit": false,
-    "elapsed_ms": 1395
+    "elapsed_ms": 2049
   },
   "map_url": "http://localhost:8000/map/?start=Detroit%2C+MI&finish=Chicago%2C+IL&start_fuel_miles=0"
 }
@@ -113,7 +113,7 @@ and `lat,lng`. Other text is sent to the geocoder. A city name that exists in se
 | `fuel_stops[].gallons`, `cost` | Gallons bought at the stop and their cost (`gallons` times the 3 decimal price, to the cent). |
 | `fuel_stops[].reserve_gallons` | Gallons burned before the first pump (at least the drive to it) and paid for there (see Assumptions). Zero after the first stop. |
 | `fuel_stops[].off_route_miles` | Straight-line offset of the station position from the route. |
-| `fuel_stops[].detour_miles` | Estimated road miles to the pump and back (1.3 x offset each way, at least 0.2 mile for exit and station positions). |
+| `fuel_stops[].detour_miles` | Estimated road miles to the pump and back (1.3 x offset each way, at least 0.2 mile for exit and station positions, 1 mile for city positions). |
 | `fuel_stops[].country`, `lat`, `lng`, `location_precision` | Station country and position; precision is `exit` (OpenStreetMap exit), `station` (a same-brand OpenStreetMap pump, possibly one of several within 5 miles) or `city` (city centre). |
 | `summary.total_cost` | Total fuel cost, USD (stop and detour costs are not included). |
 | `summary.stop_cost_usd`, `detour_cost_per_mile_usd` | Per-stop time cost and per-detour-mile cost the plan was optimised with, USD. |
@@ -184,7 +184,7 @@ per-mile cost). Ties go to the plan with fewer stops.
 - With no station there, the truck runs on reserve to the first station and repays that fuel there
   (`reserve_gallons`), so every mile is paid for and no fill exceeds 50 gallons.
 - Detours count: a stop drives to the pump and back (1.3 x the straight-line offset each way, an
-  assumed road factor; at least 0.2 mile each way at an exit or station), needs that fuel on arrival,
+  assumed road factor; at least 0.2 mile each way at an exit or station, 1 mile for a station known only by its city), needs that fuel on arrival,
   buys within the tank at the pump, and costs $1.854 per detour mile on top of the fuel (ATRI non-fuel
   cost per mile; `DETOUR_COST_PER_MILE_USD`).
 - Minimum fill 10 gal per stop, unless the stop fills the tank to full or is the final purchase needed to reach the destination.

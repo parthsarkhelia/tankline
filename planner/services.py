@@ -24,9 +24,11 @@ CENT = Decimal("0.01")
 PRICE_STEP = Decimal("0.001")  # prices are shown, and costs computed, at 3 dp
 SAME_PLACE_MILES = 1.0
 # Assumption: roads to a pump run about 1.3x the straight-line offset (road circuity), and even a pump
-# right at an exit is a 0.2-mile ramp and lot away. City-centroid stations get no floor.
+# right at an exit is a 0.2-mile ramp and lot away. A station known only by its city centroid could be
+# anywhere in town, so it is never treated as on the highway: at least 1 mile each way.
 ROAD_FACTOR = 1.3
 RAMP_TENTHS = 2
+CITY_DETOUR_FLOOR_MILES = 1.0
 FALLBACK_ROUTE_SECONDS = 600  # a car route standing in for ORS: retry truck routing soon
 EMPTY_TANK_NOTE = (
     "Assumes the truck starts with an empty tank and fills up at the station near the start that makes "
@@ -84,7 +86,7 @@ def _load_table(version):
 def detour_tenths(offset_miles, exact):
     """One-way drive from the route to the pump, tenths of a mile."""
     tenths = round(offset_miles * ROAD_FACTOR * 10)
-    return max(tenths, RAMP_TENTHS) if exact else tenths
+    return max(tenths, RAMP_TENTHS if exact else round(CITY_DETOUR_FLOOR_MILES * 10))
 
 
 def plan_trip(start, finish, start_fuel_miles=0.0):

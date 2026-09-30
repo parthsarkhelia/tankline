@@ -102,13 +102,13 @@ objective also adds `2d x DETOUR_COST_PER_MILE_USD` per stop (below).
 
 Reserve rule. With `start_fuel_miles` at 0 the truck begins empty. Stations within the start city's
 corridor count as mile 0, and the plan begins with a fill at the one that makes the trip cheapest. Any
-station at the first route position whose pump the start fuel cannot reach may be the first stop on
-reserve: the truck runs to it, detour to the pump included, repays that fuel there and must stop there
-(the programme picks which, and a pump reachable without reserve does not rule the others out). The
-first stop then carries `reserve_gallons` on top of its fill. From an empty start this is just the
-drive to the first pump; with no station near the start it is the run down the road as well (the plan
-then says so). The reserve stop is limited to the stations at the first route position, which from an
-empty start are the start-zone stations; a cheaper pump further on cannot be the reserve stop. Every mile, detours included, is paid for, no fill exceeds 50 gallons, and
+station at the first route position (from an empty start, any start-zone station) whose pump the start
+fuel cannot reach may be the first stop on reserve: the truck runs to it, detour to the pump included,
+repays that fuel there and must stop there. The programme picks which, and a pump reachable without
+reserve does not rule the others out. The first stop then carries `reserve_gallons` on top of its fill.
+From an empty start this is just the drive to the first pump; with no station near the start it is the
+run down the road as well (the plan then says so). Only first-position stations can be reserve stops: a
+pump further down the road is reached on start fuel or after a first stop, never on reserve. Every mile, detours included, is paid for, no fill exceeds 50 gallons, and
 `gallons_purchased` equals `gallons_burned`. The alternative, rejecting the trip, would fail for many
 short routes that start between stations. A 422 is returned only when a stretch of the route has no
 station within 500 miles.
@@ -178,9 +178,9 @@ huge city from pulling in stations far from the road.
 The one-way detour to a candidate is its straight-line offset from the route times a road factor of
 1.3, rounded to a tenth of a mile. Both numbers are assumptions: 1.3 stands for road circuity (a road is
 longer than the straight line), and exit and station positions get a floor of 0.2 mile each way for the
-ramp and the lot, since the matched point is a junction node or the pump's centre, not the pump. A
-city-centroid station gets the same formula on its centroid offset and no floor, which is conservative:
-its real pump may be nearer the road.
+ramp and the lot, since the matched point is a junction node or the pump's centre, not the pump. A city-centroid station gets the same formula on its centroid offset with a floor of 1 mile each way
+(`CITY_DETOUR_FLOOR_MILES`), also an assumption: its pump could be anywhere in town, so a centroid that
+happens to sit on the route must not make the station look free to reach.
 
 Distance and projection are computed per station in a local planar frame: longitude is scaled by the
 cosine of the station's latitude and degrees are converted to miles. Over an offset of at most 20 miles
