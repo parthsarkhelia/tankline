@@ -9,8 +9,10 @@ from planner.optimizer import Candidate, RangeGapError, plan_purchases
 INF = (float("inf"), float("inf"))
 
 
-def reference(candidates, length, start_fuel, tank, min_fill=0):
-    """Exhaustive (cost, stops) minimum over integer purchases, same rules. Small inputs only.
+def reference(candidates, length, start_fuel, tank, min_fill=0, stop_cost=0):
+    """Exhaustive minimum of (cost + stop_cost x stops, stops) over integer purchases, same rules.
+
+    Returns the (fuel cost, stops) of that argmin. Small inputs only.
 
     A stop pumps nothing or at least min_fill, except a smaller amount that is exactly
     what reaches the destination (then nothing more is bought). A truck that cannot reach
@@ -19,6 +21,9 @@ def reference(candidates, length, start_fuel, tank, min_fill=0):
     path = sorted(candidates, key=lambda c: (c.position, c.price))
     path.append(Candidate(-1, length, Decimal(0)))
     last = len(path) - 1
+
+    def best_of(*options: tuple) -> tuple:
+        return min(options, key=lambda r: INF if r == INF else (r[0] + stop_cost * r[1], r[1]))
 
     def buys(i, fuel):
         """(amount, finishes_here) options at station i with `fuel` on arrival."""
@@ -30,7 +35,7 @@ def reference(candidates, length, start_fuel, tank, min_fill=0):
                 yield buy, True
 
     @functools.lru_cache(None)
-    def at(i, fuel, forced=False):
+    def at(i, fuel, forced=False) -> tuple:
         if i == last:
             return (0, 0)
         best = INF
@@ -38,7 +43,7 @@ def reference(candidates, length, start_fuel, tank, min_fill=0):
             stopped = forced or buy > 0
             here = buy * path[i].price
             rest = (0, 0) if finishes else drive(i, fuel + buy)
-            best = min(best, _add(rest, here, stopped))
+            best = best_of(best, _add(rest, here, stopped))
         return best
 
     @functools.lru_cache(None)
@@ -48,7 +53,7 @@ def reference(candidates, length, start_fuel, tank, min_fill=0):
             distance = path[j].position - path[i].position
             if distance > fuel:
                 break
-            best = min(best, at(j, fuel - distance))
+            best = best_of(best, at(j, fuel - distance))
         return best
 
     if start_fuel >= length:
@@ -57,13 +62,13 @@ def reference(candidates, length, start_fuel, tank, min_fill=0):
         return INF
     first = path[0].position
     if start_fuel >= first:
-        return min(
-            (
+        return best_of(
+            INF,
+            *(
                 at(j, start_fuel - path[j].position)
                 for j in range(len(path))
                 if path[j].position <= start_fuel
             ),
-            default=INF,
         )
     if first > tank:
         return INF
@@ -107,21 +112,25 @@ def simulate(purchases, candidates, length, start_fuel, tank, min_fill):
     assert not bought
 
 
+@pytest.mark.parametrize("stop_cost", [0, 2])
 @pytest.mark.parametrize("min_fill", [0, 2, 3, "tank-1"])
-def test_matches_exhaustive_search(min_fill):
-    rng = random.Random(7 + (99 if min_fill == "tank-1" else min_fill))
+def test_matches_exhaustive_search(min_fill, stop_cost):
+    rng = random.Random(7 + (99 if min_fill == "tank-1" else min_fill) + 1000 * stop_cost)
     checked = 0
     for _ in range(3000):
         candidates, length, start_fuel, tank = random_case(rng)
         fill = tank - 1 if min_fill == "tank-1" else min_fill
-        best = reference(candidates, length, start_fuel, tank, fill)
+        best = reference(candidates, length, start_fuel, tank, fill, stop_cost)
         if best == INF:
             with pytest.raises(RangeGapError):
-                plan_purchases(candidates, length, start_fuel, tank, fill)
+                plan_purchases(candidates, length, start_fuel, tank, fill, Decimal(stop_cost))
             continue
-        purchases = plan_purchases(candidates, length, start_fuel, tank, fill)
+        purchases = plan_purchases(candidates, length, start_fuel, tank, fill, Decimal(stop_cost))
         checked += 1
-        assert (total(purchases), len(purchases)) == best  # cheapest, then fewest stops: exact
+        assert (
+            total(purchases),
+            len(purchases),
+        ) == best  # cheapest incl. stop cost, then fewest stops: exact
         assert sum(p.fuel + p.reserve for p in purchases) == max(0, length - start_fuel)
         simulate(purchases, candidates, length, start_fuel, tank, fill)
     assert checked > 1000
@@ -201,3 +210,16 @@ def test_full_top_up_below_the_minimum_keeps_the_trip_drivable():
     assert sum(p.fuel + p.reserve for p in purchases) == 9700 - 4500
     simulate(purchases, candidates, 9700, 4500, 5000, 1000)
     assert purchases[0].fuel == 500  # tops the tank up to full, below the minimum
+
+
+def test_stop_cost_skips_a_top_up_that_saves_less_than_the_stop():
+    # The cheaper station 450 units on saves 0.10 on a 50 unit top-up: 5 in all.
+    candidates = [Candidate(1, 0, Decimal("3.00")), Candidate(2, 450, Decimal("2.90"))]
+
+    def plan(stop_cost):
+        return [
+            p.fuel for p in plan_purchases(candidates, length=500, tank=500, stop_cost=Decimal(stop_cost))
+        ]
+
+    assert plan(0) == [450, 50]  # free stops: top up at the cheaper station
+    assert plan(20) == [500]  # a stop costs more than the saving: one fill
