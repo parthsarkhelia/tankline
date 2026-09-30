@@ -74,6 +74,12 @@ The 620 Canadian rows are kept. Whether one is used depends on where the route i
 The price file is committed as `data/fuel-prices.csv` and copied into the Docker image; the tests use an
 invented sample instead.
 
+Storage is SQLite, also in Docker. The one table is rebuilt from the CSV on every start and each worker
+reads it into numpy arrays once (`station_table()`), so requests never query the database; only
+`/healthz` does. A database server would add a container, a volume and a password for data that is
+thrown away at each boot. Shared state between workers (routes, plans, the ORS budget, rate limits)
+lives in Redis.
+
 ## Optimiser
 
 The route is a line. Positions are integer tenths of a mile and fuel is measured as miles of range in

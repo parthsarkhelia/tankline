@@ -4,7 +4,6 @@ import os
 os.environ["DJANGO_SECRET_KEY"] = "test-secret"
 os.environ["ORS_API_KEY"] = "test-key"
 os.environ["ROUTING_PROVIDER"] = "ors"  # every provider call in tests is a recorded response
-os.environ.pop("POSTGRES_HOST", None)
 os.environ.pop("REDIS_URL", None)
 
 # The environment must be set before the base settings load.

@@ -44,20 +44,8 @@ TEMPLATES = [
     }
 ]
 
-if env("POSTGRES_HOST"):
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "HOST": env("POSTGRES_HOST"),
-            "PORT": env("POSTGRES_PORT", "5432"),
-            "NAME": env("POSTGRES_DB", "tankline"),
-            "USER": env("POSTGRES_USER", "tankline"),
-            "PASSWORD": env("POSTGRES_PASSWORD", ""),
-            "CONN_MAX_AGE": 60,
-        }
-    }
-else:
-    DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
+# Written once at boot by load_stations, then read into memory (planner/services.py), so SQLite is enough.
+DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
 
 if env("REDIS_URL"):
     CACHES = {

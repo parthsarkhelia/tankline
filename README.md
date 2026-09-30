@@ -9,7 +9,7 @@
 ![Python](https://img.shields.io/badge/python-3.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Django](https://img.shields.io/badge/django-6.1-092E20?style=flat-square&logo=django&logoColor=white)
 ![DRF](https://img.shields.io/badge/DRF-3.18-A30000?style=flat-square&logo=django&logoColor=white)
-![Postgres](https://img.shields.io/badge/postgres-17-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![SQLite](https://img.shields.io/badge/sqlite-3-003B57?style=flat-square&logo=sqlite&logoColor=white)
 ![Redis](https://img.shields.io/badge/redis-8-FF4438?style=flat-square&logo=redis&logoColor=white)
 ![Docker](https://img.shields.io/badge/docker-compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![OpenStreetMap](https://img.shields.io/badge/map%20data-OpenStreetMap-7EBC6F?style=flat-square&logo=openstreetmap&logoColor=white)
@@ -43,7 +43,7 @@ open "http://localhost:8000/map/?start=Chicago,%20IL&finish=Denver,%20CO"
 ```
 
 > [!NOTE]
-> No API key or `.env` is needed. The container migrates Postgres, loads the stations and starts gunicorn with Redis for caching. Health: `/healthz`, interactive docs: `/api/docs/`.
+> No API key or `.env` is needed. The container loads the stations into SQLite and starts gunicorn with Redis for caching. Health: `/healthz`, interactive docs: `/api/docs/`.
 
 Optional settings (`cp .env.example .env`):
 
@@ -55,7 +55,7 @@ Optional settings (`cp .env.example .env`):
 | `DETOUR_COST_PER_MILE_USD` | `1.854` | Cost of each mile driven off the route to a pump. |
 
 <details>
-<summary>Run without Docker (SQLite, no Redis)</summary>
+<summary>Run without Docker (no Redis)</summary>
 
 ```bash
 cp .env.example .env
