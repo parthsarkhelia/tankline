@@ -21,20 +21,20 @@ request on the real price list with OSRM routing.
     "profile": "driving"
   },
   "fuel_stops": [
-    { "stop": 1, "name": "BP", "city": "Dearborn", "state": "MI", "price_per_gallon": "3.199", "mile": 5.4, "off_route_miles": 4.4, "detour_miles": 11.4, "gallons": "28.32", "reserve_gallons": "0.57", "cost": "92.42", "location_precision": "exit" }
+    { "stop": 1, "name": "SHELL", "city": "Detroit", "state": "MI", "price_per_gallon": "3.699", "mile": 0.0, "off_route_miles": 0.0, "detour_miles": 0.0, "gallons": "27.75", "reserve_gallons": "0.00", "cost": "102.65", "location_precision": "city" }
   ],
   "summary": {
     "stops": 1,
-    "gallons_purchased": "28.89",
-    "gallons_burned": "28.89",
-    "total_cost": "92.42",
+    "gallons_purchased": "27.75",
+    "gallons_burned": "27.75",
+    "total_cost": "102.65",
     "start_fuel_miles": 0.0,
     "range_miles": 500,
     "mpg": 10,
     "stop_cost_usd": "18.00",
     "detour_cost_per_mile_usd": "1.854",
-    "detour_miles": 11.4,
-    "route_miles_driven": 288.9
+    "detour_miles": 0.0,
+    "route_miles_driven": 277.5
   },
   "assumptions": [
     "Assumes the truck starts with an empty tank and fills up at the station near the start that makes the trip cheapest; ..."
@@ -42,7 +42,7 @@ request on the real price list with OSRM routing.
   "meta": {
     "external_calls": 1,
     "cache_hit": false,
-    "elapsed_ms": 1391
+    "elapsed_ms": 1395
   },
   "map_url": "http://localhost:8000/map/?start=Detroit%2C+MI&finish=Chicago%2C+IL&start_fuel_miles=0"
 }
@@ -114,7 +114,7 @@ and `lat,lng`. Other text is sent to the geocoder. A city name that exists in se
 | `fuel_stops[].reserve_gallons` | Gallons burned before the first pump (at least the drive to it) and paid for there (see Assumptions). Zero after the first stop. |
 | `fuel_stops[].off_route_miles` | Straight-line offset of the station position from the route. |
 | `fuel_stops[].detour_miles` | Estimated road miles to the pump and back (1.3 x offset each way, at least 0.2 mile for exit and station positions). |
-| `fuel_stops[].country`, `lat`, `lng`, `location_precision` | Station country and position; precision is `exit` (OpenStreetMap exit), `station` (OpenStreetMap fuel station) or `city` (city centre). |
+| `fuel_stops[].country`, `lat`, `lng`, `location_precision` | Station country and position; precision is `exit` (OpenStreetMap exit), `station` (a same-brand OpenStreetMap pump, possibly one of several within 5 miles) or `city` (city centre). |
 | `summary.total_cost` | Total fuel cost, USD (stop and detour costs are not included). |
 | `summary.stop_cost_usd`, `detour_cost_per_mile_usd` | Per-stop time cost and per-detour-mile cost the plan was optimised with, USD. |
 | `summary.detour_miles`, `route_miles_driven` | All detours, and route distance plus detours. |
@@ -169,12 +169,14 @@ per-mile cost). Ties go to the plan with fewer stops.
 
 ## Assumptions
 
-- Stations sit at their exit (52% of US stations) or matched fuel station (21%) from OpenStreetMap, else
-  at their city's coordinates (27%). 6,724 of 6,738 distinct stations are placed (14 skipped, no
-  coordinates). Exit and station positions and a few hundred city coordinates come from OpenStreetMap
-  (Overpass and Nominatim), (c) OpenStreetMap contributors, ODbL; the other cities from the US Census
-  Gazetteer. A station match picks the nearest same-brand station to the city, which can be the wrong
-  one of several in a large city.
+- Stations sit at their OpenStreetMap exit (52% of US stations) or at a matched same-brand fuel station
+  (14%), else at their city's coordinates (35%). 6,724 of 6,738 distinct stations are placed (14
+  skipped, no coordinates). An exit match needs the exit number on the named Interstate. A station
+  match is kept only when every same-brand candidate lies within 5 miles of the chosen one (or it is
+  the only truck stop), so `station` means a same-brand pump within 5 miles of the priced one could be
+  the one; otherwise the station stays at `city`. Exit and station positions and a few hundred city
+  coordinates come from OpenStreetMap (Overpass and Nominatim, data as of 2026-09-30), (c)
+  OpenStreetMap contributors, ODbL; the other cities from the US Census Gazetteer.
 - One row per OPIS ID, lowest price kept. Prices are treated as USD per gallon.
 - The truck starts empty unless `start_fuel_miles` says otherwise. Stations within the start city's
   corridor count as mile 0, so the trip begins with a fill at one of them; the drive to its pump is

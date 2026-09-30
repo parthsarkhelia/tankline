@@ -19,40 +19,54 @@ the ZIP code index and the country borders (Natural Earth).
 
 Station positions. A city centroid can be miles from the pump, so `build_geodata --positions` places
 stations at their real exit or pump where OpenStreetMap has it, and writes
-`stations/data/station_points.csv.gz` (OPIS ID, lat, lng, precision, OSM source), committed. It makes
-two bulk Overpass queries per state or province (a padded bounding box around that state's city
-centroids): every `highway=motorway_junction` node with the `ref` of the motorway or trunk ways it lies
-on, and every `amenity=fuel` with its `brand` and `name`. Responses are cached under `.cache/geodata/`
-(written to a `.part` file and renamed), queries are 5 seconds apart, and 429/5xx or unreadable
-answers are retried with backoff on overpass-api.de and then the maps.mail.ru mirror. No query is made
-per station, and nothing is queried at request time.
+`stations/data/station_points.csv.gz` (OPIS ID, lat, lng, precision, OSM source; written to a `.part`
+file and renamed), committed. It makes two bulk Overpass queries per state or province (a padded
+bounding box around that state's city centroids): every `highway=motorway_junction` node with the
+`ref` of the motorway or trunk ways it lies on, and every `amenity=fuel` with its `brand` and `name`.
+Responses are cached under `.cache/geodata/` (also `.part` and rename), queries are 5 seconds apart,
+and 429/5xx or unreadable answers are retried with backoff on overpass-api.de and then the
+maps.mail.ru mirror. No query is made per station, and nothing is queried at request time. A rebuild
+from the cache is offline and deterministic.
+
+OSM snapshot: 113 of the 114 cached responses carry an OSM base timestamp of 2026-09-30 (10:22 to
+11:55 UTC). One, the Arizona junctions, came from a mirror whose data was as of 2026-05-06: a mirror can
+lag the main server by months, so its timestamp is worth checking after a fallback.
 
 - `exit`: the address names an exit ("I-80, EXIT 360", "I-81N, EXIT 2W & I-81S, EXIT 3", "US-30,
-  EXIT 186"). The match is a junction node whose `ref` is that exit and which lies on a way carrying a
-  route named before it (Interstate, US or state/provincial number: exit numbers repeat across
-  highways, so the route check is required), within 40 km of the city centroid, nearest first. An
-  exact ref ("144B") beats a number-only one ("144A" for "EXIT 144").
-- `station`: otherwise, the nearest `amenity=fuel` within 15 km whose brand or name has the same brand
-  as the CSV name (Pilot, Flying J, Love's, TA, Petro, Kwik Trip/Kwik Star, QuikTrip, Casey's, Sheetz,
-  Maverik, Speedway, Circle K and about 40 more, case and punctuation ignored; "Petro-Card" cardlocks are
-  never matched), preferring ones tagged for trucks (`hgv`, `fuel:HGV_diesel`). An unbranded name
-  must equal the OSM name once store numbers and words like "travel center" are removed.
+  EXIT 186"). Each exit is read with the routes written before it ("I-85, EXIT 39 I-77, EXIT 13" is
+  exit 39 on I-85 and exit 13 on I-77; a suffix letter must touch the number or follow a hyphen). A
+  candidate is a junction node whose `ref` is that exit number and which lies on a way carrying the
+  named route, within 40 km of the city centroid. Exit numbers repeat across highways, so the route
+  check is required; when the address names an Interstate the junction must be on that Interstate (a
+  shared US route is not enough, or "I-76/US-224, EXIT 1" would land on Akron's I-277/US-224 exit 1).
+  The nearest candidate wins; an exact ref ("15E") beats a number-only one ("15" for "EXIT 15E") only
+  among candidates within 5 km of the nearest, so a far exact match never beats a near one.
+- `station`: otherwise, `amenity=fuel` within 15 km whose brand or name has the same brand as the CSV
+  name (Pilot, Flying J, Love's, TA, Petro, Kwik Trip/Kwik Star, QuikTrip, Casey's, Sheetz, Maverik,
+  Speedway, Circle K and about 40 more, case and punctuation ignored; "Petro-Card" cardlocks are never
+  matched). An unbranded name must equal the OSM name once store numbers and words like "travel
+  center" are removed. If exactly one candidate is tagged for trucks (`hgv`, `fuel:HGV_diesel`) it is
+  taken. Otherwise the nearest (truck-tagged first) is kept only if every other candidate lies within
+  8 km (the 5 mile corridor) of it; if not, the match is ambiguous and the row stays `city`. So
+  `station` precision means: a pump of the same brand within 5 miles of the priced one could be the
+  one it is; it is not a confirmed identity.
 - `city`: the city centroid, as before.
 
-Every point is bounds-checked (lower 48 for US rows, a Canada box for Canadian rows). Result over the
-6,738 IDs (14 of which have no city coordinate and are not loaded):
+Every point is bounds-checked (lower 48 for US rows, a Canada box for Canadian rows; the same boxes
+check Nominatim hits). Result over the 6,738 IDs (14 of which have no city coordinate and are not
+loaded):
 
 | | exit | station | city |
 | --- | --- | --- | --- |
-| US (6,613 rows) | 3,433 (51.9%) | 1,391 (21.0%) | 1,789 (27.1%) |
-| Canada (111 rows) | 28 | 59 | 24 |
+| US (6,613 rows) | 3,426 (51.8%) | 901 (13.6%) | 2,286 (34.6%) |
+| Canada (111 rows) | 28 | 44 | 39 |
 
-73% of US stations sit at an exit or pump. Exit matches lie a median 3.9 km (90th percentile 11.7 km)
-from their city centroid, which is the error the old placement carried. Known limits: 968 of the 1,450
-station matches had more than one same-brand candidate within 15 km (the nearest to the centroid or a
-truck-tagged one wins, so a Circle K in a large city may be the wrong Circle K); 282 exit addresses
-matched no junction (exit missing or unnumbered in OSM, or an address error in the price list). Station
-data (C) OpenStreetMap contributors, ODbL.
+65% of US stations sit at an exit or a same-brand pump. Exit matches lie a median 3.9 km (90th
+percentile 11.7 km) from their city centroid, which is the error the old placement carried. Known
+limits: 511 rows with same-brand candidates were left at `city` because the candidates were too far
+apart to choose; 287 exit addresses matched no junction (exit missing or unnumbered in OSM, or an
+address error in the price list, such as "I-42" for I-41). Station data (C) OpenStreetMap
+contributors, ODbL.
 
 
 The 620 Canadian rows are kept. Whether one is used depends on where the route is, not on the row.
@@ -74,7 +88,7 @@ sizes. A stop pumps nothing, at least the minimum fill (10 gallons), or whatever
 (a tank too full to take 10 gallons can still be topped up). The one other exception is the final
 purchase that is exactly what reaches the destination. Ties on cost go to the plan with fewer stops.
 A station at the same position as another that is no dearer and no further off the road is dropped. The work is about 90 microseconds per
-station kept; New York to Los Angeles keeps 264 of 373 candidates and takes about 23 ms. The destination acts as a free
+station kept; New York to Los Angeles keeps 266 of 385 candidates and takes about 25 ms. The destination acts as a free
 station at the end of the line, which makes the last leg buy only what is needed.
 
 Detours. Each station has a one-way detour `d` from its point on the route to the pump (see Corridor).
@@ -87,12 +101,14 @@ purchase of at least the minimum means the cheapest arrival level `l <= L + 2d -
 objective also adds `2d x DETOUR_COST_PER_MILE_USD` per stop (below).
 
 Reserve rule. With `start_fuel_miles` at 0 the truck begins empty. Stations within the start city's
-corridor count as mile 0, and the plan begins with a fill at the one that makes the trip cheapest. If
-the truck cannot reach any pump on its start fuel, it runs on reserve to a station at the first route
-position (the programme picks which), repays that fuel there, detour to the pump included, and must
-stop there: the first stop carries `reserve_gallons` on top of its fill. From an empty start this is
-just the drive to the first pump; with no station near the start it is the run down the road as well
-(the plan then says so). Every mile, detours included, is paid for, no fill exceeds 50 gallons, and
+corridor count as mile 0, and the plan begins with a fill at the one that makes the trip cheapest. Any
+station at the first route position whose pump the start fuel cannot reach may be the first stop on
+reserve: the truck runs to it, detour to the pump included, repays that fuel there and must stop there
+(the programme picks which, and a pump reachable without reserve does not rule the others out). The
+first stop then carries `reserve_gallons` on top of its fill. From an empty start this is just the
+drive to the first pump; with no station near the start it is the run down the road as well (the plan
+then says so). The reserve stop is limited to the stations at the first route position, which from an
+empty start are the start-zone stations; a cheaper pump further on cannot be the reserve stop. Every mile, detours included, is paid for, no fill exceeds 50 gallons, and
 `gallons_purchased` equals `gallons_burned`. The alternative, rejecting the trip, would fail for many
 short routes that start between stations. A 422 is returned only when a stretch of the route has no
 station within 500 miles.
@@ -126,8 +142,11 @@ Sources: [ATRI operational costs](https://truckingresearch.org/about-atri/atri-r
 [Trucking Info, 2025 data](https://www.truckinginfo.com/news/trucking-fleets-faced-record-operating-costs-during-third-year-of-freight-recession).
 Detour cost. A detour is driven, so it costs what a truck mile costs apart from fuel (the fuel itself is
 bought and counted): $1.854 per mile, ATRI's non-fuel operating cost per mile in 2025 data (Trucking
-Info, above). `DETOUR_COST_PER_MILE_USD` sets it (0 to 100; 0 counts detour fuel only). Like the stop
-cost it only chooses the plan; `total_cost` stays fuel money.
+Info, above). `DETOUR_COST_PER_MILE_USD` sets it (0 to 20, about 10 times ATRI's figure, which keeps the optimiser's
+integer keys in range; 0 counts detour fuel only). Like the stop
+cost it only chooses the plan; `total_cost` stays fuel money. The two costs use different ATRI years on purpose, both cited above: the stop
+cost's hourly figure comes from ATRI's 2025 report (2024 data), the detour cost's per-mile figure from
+2025 data (Trucking Info).
 
 Measured on the real price list with OSRM routing (city-centroid positions, before detours were
 counted): New York to Los Angeles goes from 16 stops (fuel
@@ -139,14 +158,14 @@ Positions and detours, same routes and prices (OSRM, $18 stop cost, in-process, 
 
 | Route | Before: city centroids, detours free | After: exit/station positions, detours counted |
 | --- | --- | --- |
-| New York to Los Angeles | 7 stops, fuel $860.10, 281.04 gal, all 7 stops `city` | 7 stops, fuel $871.36, 281.32 gal, 2.8 detour miles, 6 `exit` + 1 `station` |
+| New York to Los Angeles | 7 stops, fuel $860.10, 281.04 gal, all 7 stops `city` | 7 stops, fuel $872.53, 281.68 gal, 6.4 detour miles, 6 `exit` + 1 `city` |
 | Chicago to Denver | 3 stops, fuel $293.48, 100.27 gal, all 3 `city` | 3 stops, fuel $297.76, 100.39 gal, 1.2 detour miles, 3 `exit` |
 
 The fuel bill rises because the old plans used stations whose centroid sat near the road while the pump
 may not; the new plans pay for the fuel to reach each pump. With `DETOUR_COST_PER_MILE_USD=0` New York
 to Los Angeles picks two city-centroid stations 5 miles off the road instead (fuel $869.47, 30.2 detour
 miles): the $1.854 per mile is what keeps plans on exit stations. Planning New York to Los Angeles
-in-process with the route cached takes about 58 ms (45 ms before; 373 candidates).
+in-process with the route cached takes about 60 ms (45 ms before; 385 candidates now).
 
 ## Corridor
 
