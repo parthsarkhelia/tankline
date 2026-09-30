@@ -32,6 +32,7 @@ def test_chicago_to_st_louis_end_to_end():
     assert body["meta"] == {**body["meta"], "external_calls": 1, "cache_hit": False}
     assert body["fuel_stops"], "a 294-mile trip on reserve must buy fuel"
     assert summary["gallons_purchased"] == summary["gallons_burned"]  # every mile's fuel is paid for
+    assert summary["stop_cost_usd"] == "18"
     assert Decimal(summary["total_cost"]) == sum(Decimal(s["cost"]) for s in body["fuel_stops"])
     for stop in body["fuel_stops"]:  # the shown numbers multiply out exactly
         bought = Decimal(stop["gallons"]) + Decimal(stop["reserve_gallons"])
@@ -196,3 +197,16 @@ def test_evicted_stations_version_never_serves_an_old_plan(monkeypatch):
         cache.delete(STATIONS_VERSION_KEY)
         services.plan_trip("Chicago, IL", "St. Louis, MO")
     assert len(runs) == 3
+
+
+@responses.activate
+def test_changing_the_stop_cost_never_serves_an_old_plan(settings, monkeypatch):
+    responses.post(routing.ORS_DIRECTIONS_URL, json=ors_fixture("ors_chicago_stl"))
+    services.plan_trip("Chicago, IL", "St. Louis, MO")
+    runs = []
+    real = services.place_stations
+    monkeypatch.setattr(services, "place_stations", lambda *a, **k: runs.append(1) or real(*a, **k))
+    settings.STOP_COST_USD = Decimal(0)
+    body = services.plan_trip("Chicago, IL", "St. Louis, MO")
+    assert runs == [1]
+    assert body["summary"]["stop_cost_usd"] == "0"

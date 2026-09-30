@@ -21,3 +21,10 @@ def routing_settings(**_kwargs):
             )
         ]
     return []
+
+
+@register()
+def stop_cost_setting(**_kwargs):
+    if not settings.STOP_COST_USD.is_finite() or settings.STOP_COST_USD < 0:
+        return [Error("STOP_COST_USD must be a number of dollars, 0 or more.", id="planner.E003")]
+    return []

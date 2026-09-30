@@ -68,6 +68,7 @@ class SummarySerializer(serializers.Serializer):
     start_fuel_miles = serializers.FloatField()
     range_miles = serializers.IntegerField()
     mpg = serializers.IntegerField()
+    stop_cost_usd = serializers.DecimalField(max_digits=8, decimal_places=2)
 
 
 class MetaSerializer(serializers.Serializer):

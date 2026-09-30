@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -122,5 +123,11 @@ VEHICLE_MPG = 10
 VEHICLE_MIN_FILL_GALLONS = (
     10  # a stop pumps at least this; less only when it is exactly what reaches the destination
 )
+try:
+    STOP_COST_USD = Decimal(
+        env("STOP_COST_USD", "18")
+    )  # per-stop time cost, only to choose stops; 0 = pure fuel cost; see docs/design.md
+except InvalidOperation:
+    raise ImproperlyConfigured("STOP_COST_USD must be a number of dollars, e.g. 18.") from None
 CORRIDOR_BASE_MILES = 5.0
 CORRIDOR_MAX_MILES = 20.0
