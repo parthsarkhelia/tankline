@@ -4,6 +4,7 @@ from django.core.checks import Error, register
 from django.core.checks import Warning as CheckWarning
 
 MAX_STOP_COST_USD = 1000
+MAX_DETOUR_COST_PER_MILE_USD = 100
 
 
 class PlannerConfig(AppConfig):
@@ -33,6 +34,20 @@ def stop_cost_setting(**_kwargs):
                 f"STOP_COST_USD must be between 0 and {MAX_STOP_COST_USD} dollars (larger is unrealistic "
                 "and would overflow the optimiser's integer keys).",
                 id="planner.E003",
+            )
+        ]
+    return []
+
+
+@register()
+def detour_cost_setting(**_kwargs):
+    cost = settings.DETOUR_COST_PER_MILE_USD
+    if not cost.is_finite() or not 0 <= cost <= MAX_DETOUR_COST_PER_MILE_USD:
+        return [
+            Error(
+                f"DETOUR_COST_PER_MILE_USD must be between 0 and {MAX_DETOUR_COST_PER_MILE_USD} dollars "
+                "(larger is unrealistic and would overflow the optimiser's integer keys).",
+                id="planner.E004",
             )
         ]
     return []

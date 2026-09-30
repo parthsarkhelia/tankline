@@ -129,5 +129,11 @@ try:
     )  # per-stop time cost, only to choose stops; 0 = pure fuel cost; see docs/design.md
 except InvalidOperation:
     raise ImproperlyConfigured("STOP_COST_USD must be a number of dollars, e.g. 18.") from None
-CORRIDOR_BASE_MILES = 5.0
+try:
+    DETOUR_COST_PER_MILE_USD = Decimal(
+        env("DETOUR_COST_PER_MILE_USD", "1.854")
+    )  # non-fuel cost of each detour mile to a pump (ATRI 2025 data); detour fuel is bought, not added here
+except InvalidOperation:
+    raise ImproperlyConfigured("DETOUR_COST_PER_MILE_USD must be a number of dollars, e.g. 1.854.") from None
+CORRIDOR_BASE_MILES = 5.0  # also the whole corridor for stations placed at an exit or pump
 CORRIDOR_MAX_MILES = 20.0
