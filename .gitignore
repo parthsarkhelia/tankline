@@ -10,3 +10,6 @@ data/*
 !data/.gitkeep
 !data/fuel-prices.csv
 .DS_Store
+postman/collections/
+postman/globals/
+.postman/
