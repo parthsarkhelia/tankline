@@ -140,6 +140,8 @@ requests and status assertions is in [`postman/tankline.postman_collection.json`
 
 Detail and measurements are in [docs/design.md](docs/design.md).
 
+Diagrams (standalone HTML; open in a browser): [architecture](docs/diagrams/architecture.html), [request sequence](docs/diagrams/request-sequence.html), [station data pipeline](docs/diagrams/station-data.html), [optimiser](docs/diagrams/optimiser.html).
+
 **Data.** `load_stations` reads the CSV, keeps the lowest price for each OPIS ID, drops unreadable or
 implausible prices and places each station at its city's coordinates. The city coordinates are committed
 (`stations/data/`), so no geocoding happens at request time.
