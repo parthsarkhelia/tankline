@@ -21,25 +21,28 @@ request on the real price list with OSRM routing.
     "profile": "driving"
   },
   "fuel_stops": [
-    { "stop": 1, "name": "BP", "city": "Dearborn", "state": "MI", "price_per_gallon": "3.199", "mile": 6.6, "gallons": "27.75", "reserve_gallons": "0.00", "cost": "88.77" }
+    { "stop": 1, "name": "BP", "city": "Dearborn", "state": "MI", "price_per_gallon": "3.199", "mile": 5.4, "off_route_miles": 4.4, "detour_miles": 11.4, "gallons": "28.32", "reserve_gallons": "0.57", "cost": "92.42", "location_precision": "exit" }
   ],
   "summary": {
     "stops": 1,
-    "gallons_purchased": "27.75",
-    "gallons_burned": "27.75",
-    "total_cost": "88.77",
+    "gallons_purchased": "28.89",
+    "gallons_burned": "28.89",
+    "total_cost": "92.42",
     "start_fuel_miles": 0.0,
     "range_miles": 500,
     "mpg": 10,
-    "stop_cost_usd": "18.00"
+    "stop_cost_usd": "18.00",
+    "detour_cost_per_mile_usd": "1.854",
+    "detour_miles": 11.4,
+    "route_miles_driven": 288.9
   },
   "assumptions": [
-    "Assumes the truck starts with an empty tank and fills up at the cheapest station near the start. ..."
+    "Assumes the truck starts with an empty tank and fills up at the station near the start that makes the trip cheapest; ..."
   ],
   "meta": {
     "external_calls": 1,
     "cache_hit": false,
-    "elapsed_ms": 429
+    "elapsed_ms": 1391
   },
   "map_url": "http://localhost:8000/map/?start=Detroit%2C+MI&finish=Chicago%2C+IL&start_fuel_miles=0"
 }
@@ -108,12 +111,14 @@ and `lat,lng`. Other text is sent to the geocoder. A city name that exists in se
 | `fuel_stops[].mile` | Distance from the start along the route. |
 | `fuel_stops[].price_per_gallon` | Station price, 3 decimals. |
 | `fuel_stops[].gallons`, `cost` | Gallons bought at the stop and their cost (`gallons` times the 3 decimal price, to the cent). |
-| `fuel_stops[].reserve_gallons` | Gallons burned before the first station and paid for there (see Assumptions). Zero after the first stop. |
-| `fuel_stops[].off_route_miles` | Straight-line offset of the city centre from the route. |
-| `fuel_stops[].country`, `lat`, `lng`, `location_precision` | Station country and position; precision is always `city`. |
-| `summary.total_cost` | Total fuel cost, USD (the stop cost is not included). |
-| `summary.stop_cost_usd` | Per-stop time cost the plan was optimised with, USD. |
-| `summary.gallons_burned` | Fuel used by the whole route (distance / 10 mpg). |
+| `fuel_stops[].reserve_gallons` | Gallons burned before the first pump (at least the drive to it) and paid for there (see Assumptions). Zero after the first stop. |
+| `fuel_stops[].off_route_miles` | Straight-line offset of the station position from the route. |
+| `fuel_stops[].detour_miles` | Estimated road miles to the pump and back (1.3 x offset each way, at least 0.2 mile for exit and station positions). |
+| `fuel_stops[].country`, `lat`, `lng`, `location_precision` | Station country and position; precision is `exit` (OpenStreetMap exit), `station` (OpenStreetMap fuel station) or `city` (city centre). |
+| `summary.total_cost` | Total fuel cost, USD (stop and detour costs are not included). |
+| `summary.stop_cost_usd`, `detour_cost_per_mile_usd` | Per-stop time cost and per-detour-mile cost the plan was optimised with, USD. |
+| `summary.detour_miles`, `route_miles_driven` | All detours, and route distance plus detours. |
+| `summary.gallons_burned` | Fuel used by the route and the detours (`route_miles_driven` / 10 mpg). |
 | `summary.gallons_purchased` | Gallons paid for; equals `gallons_burned` on an empty-tank start. |
 | `assumptions[]` | Notes that apply to this plan. |
 | `meta` | `external_calls` made for this request, `cache_hit`, `elapsed_ms`. |
@@ -143,37 +148,47 @@ Detail and measurements are in [docs/design.md](docs/design.md).
 Diagrams (standalone HTML; open in a browser): [architecture](docs/diagrams/architecture.html), [request sequence](docs/diagrams/request-sequence.html), [station data pipeline](docs/diagrams/station-data.html), [optimiser](docs/diagrams/optimiser.html).
 
 **Data.** `load_stations` reads the CSV, keeps the lowest price for each OPIS ID, drops unreadable or
-implausible prices and places each station at its city's coordinates. The city coordinates are committed
-(`stations/data/`), so no geocoding happens at request time.
+implausible prices and places each station at its OpenStreetMap exit or fuel station when one was
+matched, else at its city's coordinates. Both are committed (`stations/data/`), so no geocoding happens
+at request time.
 
 **Routing.** One routing call per new start/finish pair. OpenRouteService with the `driving-hgv` profile
 is the primary provider, the public OSRM server the fallback. Routes and plans are cached for a week
 (fallback routes for 10 minutes), so a repeated request makes no external call.
 
-**Corridor.** Stations are placed on the route by projecting their city coordinates onto it. A station
-is a candidate if it lies within `min(5 + city radius, 20)` miles of the route, so large cities count
-from further out than small towns.
+**Corridor.** Stations are placed on the route by projecting their coordinates onto it. A station at an
+exit or pump is a candidate within 5 miles of the route; one at a city centre within
+`min(5 + city radius, 20)` miles, so large cities count from further out than small towns.
 
 **Borders.** Canadian stations are kept in the data but are candidates only where the route itself is in
 Canada. A point of unknown country (water, border slivers) does not exclude a station.
 
 **Optimiser.** An exact dynamic programme over fuel levels finds the cheapest purchases under the
-minimum-fill rule, counting a per-stop time cost. Ties go to the plan with fewer stops.
+minimum-fill rule, counting a per-stop time cost and each detour to the pump (its fuel, its range and a
+per-mile cost). Ties go to the plan with fewer stops.
 
 ## Assumptions
 
-- Stations sit at their city's coordinates, not their street address. 6,724 of 6,738 distinct stations
-  are placed (14 skipped, no coordinates). A few hundred city coordinates come from OpenStreetMap
-  Nominatim, (c) OpenStreetMap contributors, ODbL; the rest from the US Census Gazetteer.
+- Stations sit at their exit (52% of US stations) or matched fuel station (21%) from OpenStreetMap, else
+  at their city's coordinates (27%). 6,724 of 6,738 distinct stations are placed (14 skipped, no
+  coordinates). Exit and station positions and a few hundred city coordinates come from OpenStreetMap
+  (Overpass and Nominatim), (c) OpenStreetMap contributors, ODbL; the other cities from the US Census
+  Gazetteer. A station match picks the nearest same-brand station to the city, which can be the wrong
+  one of several in a large city.
 - One row per OPIS ID, lowest price kept. Prices are treated as USD per gallon.
 - The truck starts empty unless `start_fuel_miles` says otherwise. Stations within the start city's
-  corridor count as mile 0, so the trip begins with a fill at the cheapest of them.
+  corridor count as mile 0, so the trip begins with a fill at one of them; the drive to its pump is
+  paid there as `reserve_gallons`.
 - With no station there, the truck runs on reserve to the first station and repays that fuel there
   (`reserve_gallons`), so every mile is paid for and no fill exceeds 50 gallons.
+- Detours count: a stop drives to the pump and back (1.3 x the straight-line offset each way, an
+  assumed road factor; at least 0.2 mile each way at an exit or station), needs that fuel on arrival,
+  buys within the tank at the pump, and costs $1.854 per detour mile on top of the fuel (ATRI non-fuel
+  cost per mile; `DETOUR_COST_PER_MILE_USD`).
 - Minimum fill 10 gal per stop, unless the stop fills the tank to full or is the final purchase needed to reach the destination.
 - 422 `fuel_gap` only when a stretch has no station within 500 miles.
 - Optimal = cheapest fuel plus an $18 per-stop time cost (from ATRI operating-cost data; see docs/design.md), so plans skip trivial top-ups. Set STOP_COST_USD=0 for pure fuel cost.
-- No detour cost, tolls, hours of service or brand preferences.
+- No tolls, hours of service or brand preferences. Detours are straight-line estimates, not routed.
 - Canadian stations count only while the route is in Canada. In the data, Sarnia diesel is $3.31 against
   a US median of $3.40, worth at most about $4.50 per tank, which does not justify a border crossing.
 - The OSRM fallback uses a car profile, so its durations are shorter than a truck's. ORS `driving-hgv`
@@ -202,6 +217,7 @@ uv run pytest                 # synthetic stations, recorded routes, network blo
 uv run ruff check . && uv run ruff format --check . && uv run pyright
 uv run pylint config planner stations tests
 uv run --env-file .env manage.py build_geodata --fetch-missing   # rebuild coordinate files
+uv run --env-file .env manage.py build_geodata --positions       # rebuild exit/station positions (Overpass)
 uv run --env-file .env manage.py warm_routes                     # before a demo
 ```
 
