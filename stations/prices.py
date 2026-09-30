@@ -12,10 +12,18 @@ from .geo import DATA_DIR
 
 DEFAULT_CSV = settings.BASE_DIR / "data" / "fuel-prices.csv"
 LOCATIONS_FILE = DATA_DIR / "station_locations.csv.gz"
+POINTS_FILE = DATA_DIR / "station_points.csv.gz"  # OpenStreetMap exit or station positions, by OPIS ID
 COLUMNS = ("OPIS Truckstop ID", "Truckstop Name", "Address", "City", "State", "Rack ID", "Retail Price")
 MIN_PRICE = Decimal("0.5")  # USD/gal; outside [MIN, MAX) is a data error, not a bargain
 MAX_PRICE = Decimal(20)
 STATIONS_VERSION_KEY = "stations:version"
+
+
+@dataclass(frozen=True)
+class StationPoint:
+    lat: float
+    lng: float
+    precision: str  # exit | station
 
 
 @dataclass(frozen=True)
@@ -60,5 +68,16 @@ def read_locations(path=LOCATIONS_FILE):
             (r["city_key"], r["state"]): CsvLocation(
                 float(r["lat"]), float(r["lng"]), float(r["radius_miles"]), r["source"]
             )
+            for r in csv.DictReader(fh)
+        }
+
+
+def read_points(path=POINTS_FILE):
+    """OpenStreetMap positions by OPIS ID; empty when the file has not been built."""
+    if not Path(path).exists():
+        return {}
+    with gzip.open(path, "rt", encoding="utf-8", newline="") as fh:
+        return {
+            int(r["opis_id"]): StationPoint(float(r["lat"]), float(r["lng"]), r["precision"])
             for r in csv.DictReader(fh)
         }

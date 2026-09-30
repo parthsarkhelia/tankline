@@ -29,7 +29,15 @@ from stations.geo import (
     normalize,
     place_keys,
 )
-from stations.prices import DEFAULT_CSV, LOCATIONS_FILE, dedupe_lowest_price, read_price_rows
+from stations.osm import in_bounds, junction_refs, match_exit, match_station, way_routes
+from stations.prices import (
+    DEFAULT_CSV,
+    LOCATIONS_FILE,
+    POINTS_FILE,
+    dedupe_lowest_price,
+    read_locations,
+    read_price_rows,
+)
 
 GAZETTEER_URL = (
     "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_Gaz_{}_national.zip"
@@ -46,6 +54,22 @@ BORDER_BBOX = (-130.0, 24.0, -60.0, 53.0)
 DEFAULT_RADIUS_MILES = 2.0  # Nominatim gives a point, not an area
 # Sanity boxes for Nominatim hits (min lat, max lat, min lng, max lng): a wrong hit must not be committed.
 NOMINATIM_BOXES = {"us": (24.3, 49.5, -125.0, -66.8), "ca": (41.6, 70.0, -141.0, -52.0)}
+# Overpass (OpenStreetMap, ODbL). The mirror is tried when the main server refuses or times out.
+OVERPASS_URLS = (
+    "https://overpass-api.de/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+)
+OVERPASS_PAUSE = 5.0  # seconds between live queries: be polite to a shared public service
+OVERPASS_RETRIES = 4
+PAD_LAT, PAD_LNG = 0.4, 0.6  # bbox padding (deg) around a state's city centroids: covers 40 km at 49N
+JUNCTIONS_QUERY = """[out:json][timeout:600][maxsize:536870912][bbox:{bbox}];
+way[highway~"^(motorway|trunk)$"][ref]->.w;
+.w out body;
+node(w.w)[highway=motorway_junction][ref];
+out;"""
+FUEL_QUERY = """[out:json][timeout:600][maxsize:536870912][bbox:{bbox}];
+nwr[amenity=fuel];
+out center tags;"""
 # Census names a few consolidated cities in a way no general rule recovers.
 ALIASES = {("boise", "ID"): ("boise city", "ID")}
 
@@ -87,6 +111,11 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--csv", default=str(DEFAULT_CSV))
         parser.add_argument(
+            "--positions",
+            action="store_true",
+            help="Only build station_points.csv.gz from OpenStreetMap exits and stations (Overpass).",
+        )
+        parser.add_argument(
             "--fetch-missing", action="store_true", help="Look up unmatched cities on Nominatim (1 req/s)."
         )
 
@@ -95,6 +124,9 @@ class Command(BaseCommand):
             rows = dedupe_lowest_price(read_price_rows(options["csv"]))
         except (OSError, ValueError) as exc:
             raise CommandError(f"Cannot read the fuel CSV: {exc}") from exc
+        if options["positions"]:
+            self._write_points(rows)
+            return
         places = self._build_places()
         self._build_zcta()
         self._build_borders()
@@ -228,3 +260,106 @@ class Command(BaseCommand):
         )
         for city, state in sorted(unmatched)[:20]:
             self.stdout.write(f"  unmatched: {city}, {state}")
+
+    def _write_points(self, rows):
+        locations = read_locations()
+        by_state = {}
+        for row in rows:
+            place = locations.get((normalize(row["City"]), row["State"]))
+            if place is not None and row["OPIS Truckstop ID"].isdigit():
+                by_state.setdefault(row["State"], []).append((row, place))
+        points, counts = {}, {}
+        for state, located in sorted(by_state.items()):
+            country = "CA" if state in CANADIAN_PROVINCES else "US"
+            bbox = _bbox([p for _, p in located])
+            self.stdout.write(f"{state}: querying {bbox}")
+            junctions = _junctions(_overpass(JUNCTIONS_QUERY, bbox, f"junctions-{state}", self.stderr.write))
+            fuels = _fuels(_overpass(FUEL_QUERY, bbox, f"fuel-{state}", self.stderr.write))
+            for row, place in located:
+                point = match_exit(row["Address"], place.lat, place.lng, junctions)
+                if point is None or not in_bounds(point.lat, point.lng, country):
+                    point = match_station(row["Truckstop Name"], place.lat, place.lng, fuels)
+                if point is not None and not in_bounds(point.lat, point.lng, country):
+                    point = None
+                if point is not None:
+                    points[int(row["OPIS Truckstop ID"])] = point
+                precision = point.precision if point is not None else "city"
+                counts[(country, precision)] = counts.get((country, precision), 0) + 1
+            self.stdout.write(f"{state}: {len(located)} stations, {len(junctions)} exits, {len(fuels)} fuel")
+        with gzip.open(POINTS_FILE, "wt", encoding="utf-8", newline="") as fh:
+            writer = csv.writer(fh)
+            writer.writerow(["opis_id", "lat", "lng", "precision", "source"])
+            for opis_id, p in sorted(points.items()):
+                writer.writerow([opis_id, f"{p.lat:.6f}", f"{p.lng:.6f}", p.precision, p.source])
+        for (country, precision), n in sorted(counts.items()):
+            self.stdout.write(f"points: {country} {precision} {n}")
+
+
+def _bbox(places):
+    lats, lngs = [p.lat for p in places], [p.lng for p in places]
+    south, north = min(lats) - PAD_LAT, max(lats) + PAD_LAT
+    west, east = min(lngs) - PAD_LNG, max(lngs) + PAD_LNG
+    return f"{south:.3f},{west:.3f},{north:.3f},{east:.3f}"
+
+
+def _overpass(query, bbox, name, log):
+    """One bulk Overpass query, cached; retries with backoff and falls back to the mirror."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    target = CACHE_DIR / f"overpass-{name}.json"
+    if target.exists():
+        return json.loads(target.read_text(encoding="utf-8"))
+    for attempt in range(OVERPASS_RETRIES):
+        for url in OVERPASS_URLS:
+            try:
+                response = requests.post(
+                    url,
+                    data={"data": query.format(bbox=bbox)},
+                    headers={"User-Agent": USER_AGENT},
+                    timeout=(15, 700),
+                )
+                response.raise_for_status()
+                data = json.loads(response.content)  # an HTML "too busy" page or a cut-off body fails here
+            except (requests.RequestException, ValueError) as exc:
+                log(f"{name}: {url} failed ({exc.__class__.__name__}: {str(exc)[:80]})")
+                continue
+            if "remark" in data:  # Overpass reports a timeout or memory limit here, after partial output
+                raise CommandError(f"Overpass {name}: {data['remark']}; split the region or retry.")
+            partial = target.with_name(target.name + ".part")
+            partial.write_bytes(response.content)
+            partial.replace(target)
+            time.sleep(OVERPASS_PAUSE)
+            return data
+        time.sleep(30 * 2**attempt)
+    raise CommandError(f"Overpass unavailable for {name}; try again later.")
+
+
+def _junctions(data):
+    """[(lat, lng, refs, routes, id, ref)]: motorway exits with the routes of the ways they lie on."""
+    routes = {}
+    for el in data["elements"]:
+        if el["type"] == "way":
+            carried = way_routes(el.get("tags", {}).get("ref", ""))
+            for node in el.get("nodes", ()):
+                routes.setdefault(node, set()).update(carried)
+    return [
+        (
+            el["lat"],
+            el["lon"],
+            junction_refs(el["tags"]["ref"]),
+            routes.get(el["id"], set()),
+            el["id"],
+            el["tags"]["ref"],
+        )
+        for el in data["elements"]
+        if el["type"] == "node"
+    ]
+
+
+def _fuels(data):
+    """[(lat, lng, tags, 'type/id')] for every amenity=fuel node, way or relation."""
+    found = []
+    for el in data["elements"]:
+        centre = el if el["type"] == "node" else el.get("center")
+        if centre:
+            found.append((centre["lat"], centre["lon"], el.get("tags", {}), f"{el['type']}/{el['id']}"))
+    return found
