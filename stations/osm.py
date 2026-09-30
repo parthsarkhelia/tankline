@@ -16,7 +16,7 @@ BOUNDS = {"US": (24.3, 49.5, -125.0, -66.8), "CA": (41.6, 70.0, -141.0, -52.0)} 
 
 _ROUTE = re.compile(r"\b(IH|I|US|SR|SH|ST|HWY|HIGHWAY|TCH|RTE|RT|ROUTE|[A-Z]{1,2})\s*-?\s*(\d{1,4})[A-Z]?\b")
 # The suffix letter must touch the number or follow a hyphen: in "EXIT 39 I-77" the I is a route.
-_EXIT = re.compile(r"\bEXIT\s*#?\s*(\d{1,4})(?:\s*-\s*|)([A-Z])?(?![A-Z0-9])")
+_EXIT = re.compile(r"\b(?:EXIT|EXT|EX)\.?\s*#?\s*(\d{1,4})(?:\s*-\s*|)([A-Z])?(?![A-Z0-9])")
 _OSM_REF = re.compile(r"^([A-Z]+)?[\s-]*(\d{1,4})")
 # Longest phrase first; the same table reads CSV names and OSM brand/name tags. None = never matched.
 _BRANDS = sorted(
