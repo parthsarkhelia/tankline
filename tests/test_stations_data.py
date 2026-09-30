@@ -6,7 +6,7 @@ from django.core.management import CommandError, call_command
 from stations.geo import places_index
 from stations.management.commands.build_geodata import radius_from_area
 from stations.models import Station
-from stations.prices import dedupe_lowest_price, read_price_rows
+from stations.prices import StationPoint, dedupe_lowest_price, read_points, read_price_rows
 
 HEADER = "OPIS Truckstop ID,Truckstop Name,Address,City,State,Rack ID,Retail Price\n"
 
@@ -119,3 +119,27 @@ def test_padded_header_names_are_accepted(tmp_path):
             "Retail Price": "3.459",
         }
     ]
+
+
+@pytest.mark.django_db
+def test_load_stations_uses_matched_positions(tmp_path, monkeypatch):
+    path = tmp_path / "prices.csv"
+    path.write_text(
+        HEADER
+        + '910001,SAMPLE EXIT STOP,"I-00, EXIT 1",Chicago,IL,1,3.40\n'
+        + "910002,SAMPLE TOWN,I-00,Chicago,IL,1,3.50\n"
+    )
+    points = {910001: StationPoint(41.5, -87.5, "exit")}
+    monkeypatch.setattr("stations.management.commands.load_stations.read_points", lambda: points)
+    call_command("load_stations", csv=str(path), verbosity=0)
+    rows = {s.opis_id: s for s in Station.objects.all()}
+    assert (rows[910001].lat, rows[910001].lng, rows[910001].location_precision) == (41.5, -87.5, "exit")
+    assert rows[910001].geocode_source == "osm"
+    assert rows[910002].location_precision == "city" and rows[910002].geocode_source == "gazetteer"
+
+
+def test_committed_points_are_in_bounds():
+    points = read_points()
+    assert points  # built by build_geodata --positions and committed
+    assert {p.precision for p in points.values()} <= {"exit", "station"}
+    assert all(24.3 <= p.lat <= 70.0 and -141.0 <= p.lng <= -52.0 for p in points.values())

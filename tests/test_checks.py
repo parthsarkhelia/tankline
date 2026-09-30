@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from planner.apps import routing_settings, stop_cost_setting
+from planner.apps import detour_cost_setting, routing_settings, stop_cost_setting
 
 
 def ids():
@@ -41,3 +41,19 @@ def test_bad_provider_is_an_error(settings):
 def test_stop_cost_must_be_zero_or_more(settings, value, expected):
     settings.STOP_COST_USD = Decimal(value)
     assert [m.id for m in stop_cost_setting()] == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("1.854", []),
+        ("0", []),
+        ("20", []),
+        ("-0.1", ["planner.E004"]),
+        ("NaN", ["planner.E004"]),
+        ("20.01", ["planner.E004"]),
+    ],
+)
+def test_detour_cost_must_be_in_range(settings, value, expected):
+    settings.DETOUR_COST_PER_MILE_USD = Decimal(value)
+    assert [m.id for m in detour_cost_setting()] == expected

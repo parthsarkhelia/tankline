@@ -47,7 +47,8 @@ class FuelStopSerializer(serializers.Serializer):
     country = serializers.CharField()
     price_per_gallon = serializers.DecimalField(max_digits=6, decimal_places=3)
     mile = serializers.FloatField()
-    off_route_miles = serializers.FloatField()
+    off_route_miles = serializers.FloatField(help_text="Straight line from the route to the station.")
+    detour_miles = serializers.FloatField(help_text="Road miles to the pump and back (estimated).")
     gallons = serializers.DecimalField(
         max_digits=7, decimal_places=2, help_text="Pumped here; at most a full tank."
     )
@@ -57,7 +58,7 @@ class FuelStopSerializer(serializers.Serializer):
     cost = serializers.DecimalField(max_digits=9, decimal_places=2)
     lat = serializers.FloatField()
     lng = serializers.FloatField()
-    location_precision = serializers.CharField()
+    location_precision = serializers.ChoiceField(["exit", "station", "city"])
 
 
 class SummarySerializer(serializers.Serializer):
@@ -69,6 +70,9 @@ class SummarySerializer(serializers.Serializer):
     range_miles = serializers.IntegerField()
     mpg = serializers.IntegerField()
     stop_cost_usd = serializers.DecimalField(max_digits=8, decimal_places=2)
+    detour_cost_per_mile_usd = serializers.DecimalField(max_digits=6, decimal_places=3)
+    detour_miles = serializers.FloatField(help_text="All detours to pumps and back.")
+    route_miles_driven = serializers.FloatField(help_text="Route distance plus detours.")
 
 
 class MetaSerializer(serializers.Serializer):

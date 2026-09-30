@@ -1,4 +1,8 @@
-"""Load stations and prices from data/fuel-prices.csv, placed at their city's committed coordinates."""
+"""Load stations and prices from data/fuel-prices.csv.
+
+A station sits at its OpenStreetMap exit or pump when one was matched (station_points.csv.gz),
+else at its city's centroid.
+"""
 
 import uuid
 from decimal import Decimal
@@ -15,6 +19,7 @@ from stations.prices import (
     STATIONS_VERSION_KEY,
     dedupe_lowest_price,
     read_locations,
+    read_points,
     read_price_rows,
 )
 
@@ -35,7 +40,7 @@ class Command(BaseCommand):
             rows = dedupe_lowest_price(read_price_rows(path))
         except ValueError as exc:
             raise CommandError(str(exc)) from exc
-        locations = read_locations()
+        locations, points = read_locations(), read_points()
         stations, skipped = [], 0
         for row in rows:
             place = locations.get((normalize(row["City"]), row["State"]))
@@ -48,6 +53,7 @@ class Command(BaseCommand):
             if place is None:
                 skipped += 1
                 continue
+            point = points.get(station_id)
             stations.append(
                 Station(
                     opis_id=station_id,
@@ -58,10 +64,11 @@ class Command(BaseCommand):
                     country="CA" if row["State"] in CANADIAN_PROVINCES else "US",
                     rack_id=rack_id,
                     price=Decimal(row["Retail Price"]),
-                    lat=place.lat,
-                    lng=place.lng,
+                    lat=point.lat if point else place.lat,
+                    lng=point.lng if point else place.lng,
                     radius_miles=place.radius_miles,
-                    geocode_source=place.source,
+                    location_precision=point.precision if point else "city",
+                    geocode_source="osm" if point else place.source,
                 )
             )
         with transaction.atomic():

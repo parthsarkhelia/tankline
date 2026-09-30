@@ -23,9 +23,16 @@ from .routing import fetch_route
 CENT = Decimal("0.01")
 PRICE_STEP = Decimal("0.001")  # prices are shown, and costs computed, at 3 dp
 SAME_PLACE_MILES = 1.0
+# Assumption: roads to a pump run about 1.3x the straight-line offset (road circuity), and even a pump
+# right at an exit is a 0.2-mile ramp and lot away. A station known only by its city centroid could be
+# anywhere in town, so it is never treated as on the highway: at least 1 mile each way.
+ROAD_FACTOR = 1.3
+RAMP_TENTHS = 2
+CITY_DETOUR_FLOOR_MILES = 1.0
 FALLBACK_ROUTE_SECONDS = 600  # a car route standing in for ORS: retry truck routing soon
 EMPTY_TANK_NOTE = (
-    "Assumes the truck starts with an empty tank and fills up at the cheapest station near the start. "
+    "Assumes the truck starts with an empty tank and fills up at the station near the start that makes "
+    "the trip cheapest; the drive to that pump is paid there (reserve_gallons). "
     "Pass start_fuel_miles if it already has fuel."
 )
 RESERVE_NOTE = (
@@ -43,10 +50,11 @@ class StationTable:
     lat: np.ndarray
     max_offset: np.ndarray
     country: np.ndarray
+    exact: np.ndarray  # placed at an OpenStreetMap exit or pump, not a city centroid
 
     @classmethod
     def empty(cls):
-        return cls("", (), *(np.array([]) for _ in range(4)))
+        return cls("", (), *(np.array([]) for _ in range(5)))
 
 
 def stations_version():
@@ -62,14 +70,23 @@ def station_table():
 def _load_table(version):
     rows = tuple(Station.objects.order_by("opis_id"))
     radius = np.array([s.radius_miles for s in rows], dtype=float)
+    exact = np.array([s.location_precision != "city" for s in rows], dtype=bool)
+    city_corridor = np.minimum(settings.CORRIDOR_BASE_MILES + radius, settings.CORRIDOR_MAX_MILES)
     return StationTable(
         version=version,
         stations=rows,
         lng=np.array([s.lng for s in rows], dtype=float),
         lat=np.array([s.lat for s in rows], dtype=float),
-        max_offset=np.minimum(settings.CORRIDOR_BASE_MILES + radius, settings.CORRIDOR_MAX_MILES),
+        max_offset=np.where(exact, settings.CORRIDOR_BASE_MILES, city_corridor),
         country=np.array([s.country for s in rows], dtype="<U2"),
+        exact=exact,
     )
+
+
+def detour_tenths(offset_miles, exact):
+    """One-way drive from the route to the pump, tenths of a mile."""
+    tenths = round(offset_miles * ROAD_FACTOR * 10)
+    return max(tenths, RAMP_TENTHS if exact else round(CITY_DETOUR_FLOOR_MILES * 10))
 
 
 def plan_trip(start, finish, start_fuel_miles=0.0):
@@ -83,7 +100,8 @@ def plan_trip(start, finish, start_fuel_miles=0.0):
     fuel = round(start_fuel_miles * 10)
     # Stations this close to the start count as mile 0: the trip begins at the cheapest of them.
     start_zone = min(settings.CORRIDOR_BASE_MILES + origin.radius_miles, settings.CORRIDOR_MAX_MILES)
-    plan_key = f"plan:v1:{stations_version()}:{route_key}:{fuel}:{start_zone:.1f}:{settings.STOP_COST_USD}"
+    costs = f"{settings.STOP_COST_USD}:{settings.DETOUR_COST_PER_MILE_USD}"
+    plan_key = f"plan:v2:{stations_version()}:{route_key}:{fuel}:{start_zone:.1f}:{costs}"
     plan, route_calls = cache.get(plan_key), 0
     if plan is None:
         route, route_calls = _cached_route(route_key, origin, destination)
@@ -149,8 +167,11 @@ def _choose_stops(route, length, fuel, start_zone):
             key=int(row),
             position=0 if mile <= start_zone else round(float(mile) * 10),
             price=table.stations[row].price,
+            detour=detour_tenths(float(offset), bool(table.exact[row])),
         )
-        for row, mile, ok in zip(placement.index, placement.mile, allowed, strict=True)
+        for row, mile, offset, ok in zip(
+            placement.index, placement.mile, placement.offset, allowed, strict=True
+        )
         if ok
     ]
     offsets = dict(zip(placement.index.tolist(), placement.offset.tolist(), strict=True))
@@ -164,9 +185,9 @@ def _choose_stops(route, length, fuel, start_zone):
             min_fill=settings.VEHICLE_MIN_FILL_GALLONS
             * settings.VEHICLE_MPG
             * 10,  # gallons -> tenths of a mile
-            stop_cost=settings.STOP_COST_USD
-            * 10
-            * settings.VEHICLE_MPG,  # dollars -> price x tenths of a mile
+            stop_cost=settings.STOP_COST_USD * 10 * settings.VEHICLE_MPG,  # dollars -> price x tenths
+            # dollars per mile of detour -> price x tenths, per tenth of a mile
+            detour_cost=settings.DETOUR_COST_PER_MILE_USD * settings.VEHICLE_MPG,
         )
     except RangeGapError as gap:
         if not candidates:
@@ -202,7 +223,8 @@ def _stop(number, purchase, station, offset, mile):
         "country": station.country,
         "price_per_gallon": str(price),
         "mile": round(mile, 1),  # true position, even when the start zone counts it as mile 0
-        "off_route_miles": round(offset, 1),
+        "off_route_miles": round(offset, 1),  # straight line from the route to the station
+        "detour_miles": 2 * purchase.candidate.detour / 10,  # there and back, by road (estimated)
         "gallons": str(gallons.quantize(CENT)),  # pumped at this stop, never more than a full tank
         "reserve_gallons": str(reserve.quantize(CENT)),  # reserve repaid here (first stop only)
         "cost": str(((gallons + reserve) * price).quantize(CENT, ROUND_HALF_UP)),  # at the shown price
@@ -213,6 +235,7 @@ def _stop(number, purchase, station, offset, mile):
 
 
 def _summary(length, stops, fuel):
+    detour = round(sum(s["detour_miles"] for s in stops) * 10)  # tenths of a mile
     return {
         "stops": len(stops),
         "gallons_purchased": str(
@@ -220,19 +243,24 @@ def _summary(length, stops, fuel):
                 CENT
             )
         ),
-        "gallons_burned": str(_gallons(length).quantize(CENT)),
+        "gallons_burned": str(_gallons(length + detour).quantize(CENT)),  # route plus detours
         "total_cost": str(sum((Decimal(s["cost"]) for s in stops), Decimal(0)).quantize(CENT)),
         "start_fuel_miles": fuel / 10,
         "range_miles": settings.VEHICLE_RANGE_MILES,
         "mpg": settings.VEHICLE_MPG,
         "stop_cost_usd": str(settings.STOP_COST_USD.quantize(CENT)),
+        "detour_cost_per_mile_usd": str(settings.DETOUR_COST_PER_MILE_USD.quantize(PRICE_STEP)),
+        "detour_miles": detour / 10,
+        "route_miles_driven": (length + detour) / 10,
     }
 
 
 def _assumptions(stops, fuel):
     notes = [EMPTY_TANK_NOTE] if fuel == 0 else []
-    if stops and Decimal(stops[0]["reserve_gallons"]) > 0:
-        miles = round(stops[0]["mile"] - fuel / 10, 1)
+    first = stops[0] if stops else None
+    # Reserve beyond the drive to the pump means no station was near the start.
+    if first and Decimal(first["reserve_gallons"]) > _gallons(round(first["detour_miles"] * 5)):
+        miles = round(first["mile"] + first["detour_miles"] / 2 - fuel / 10, 1)
         notes.append(RESERVE_NOTE.format(miles=miles) + (START_FUEL_HINT if fuel == 0 else ""))
     return notes
 

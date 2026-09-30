@@ -44,6 +44,13 @@ def test_chicago_to_st_louis_end_to_end():
     miles = [s["mile"] for s in body["fuel_stops"]]
     assert miles == sorted(miles)
     assert all(s["country"] == "US" for s in body["fuel_stops"])
+    detour = sum(Decimal(str(s["detour_miles"])) for s in body["fuel_stops"])
+    assert detour > 0 and Decimal(str(summary["detour_miles"])) == detour  # city centroids sit off the road
+    assert summary["route_miles_driven"] == round(
+        body["route"]["distance_miles"] + summary["detour_miles"], 1
+    )
+    driven = Decimal(str(summary["route_miles_driven"])) / 10  # gallons at 10 mpg
+    assert abs(Decimal(summary["gallons_burned"]) - driven) <= Decimal("0.01")
 
 
 @responses.activate
@@ -51,7 +58,11 @@ def test_trip_from_empty_starts_at_a_station_near_the_start():
     responses.post(routing.ORS_DIRECTIONS_URL, json=ors_fixture("ors_chicago_stl"))
     body = services.plan_trip("Chicago, IL", "St. Louis, MO")
     first = body["fuel_stops"][0]
-    assert first["reserve_gallons"] == "0.00" and first["mile"] <= 20
+    assert first["mile"] <= 20
+    one_way = Decimal(str(first["detour_miles"])) / 2
+    assert abs(Decimal(first["reserve_gallons"]) - one_way / 10) <= Decimal(
+        "0.01"
+    )  # only the drive to the pump
     assert body["assumptions"] == [services.EMPTY_TANK_NOTE]
 
 
@@ -74,7 +85,8 @@ def test_reserve_note_counts_the_start_fuel():
     responses.post(routing.ORS_DIRECTIONS_URL, json=ors_fixture("ors_chicago_stl"))
     body = services.plan_trip("Chicago, IL", "St. Louis, MO", start_fuel_miles=50)
     note = next(n for n in body["assumptions"] if "on reserve" in n)
-    assert f"runs {body['fuel_stops'][0]['mile'] - 50:.1f} miles" in note
+    first = body["fuel_stops"][0]
+    assert f"runs {first['mile'] + first['detour_miles'] / 2 - 50:.1f} miles" in note
     assert "Pass start_fuel_miles" not in note
 
 
@@ -210,3 +222,41 @@ def test_changing_the_stop_cost_never_serves_an_old_plan(settings, monkeypatch):
     body = services.plan_trip("Chicago, IL", "St. Louis, MO")
     assert runs == [1]
     assert body["summary"]["stop_cost_usd"] == "0.00"
+
+
+@pytest.mark.parametrize(
+    ("offset", "precision", "tenths"),
+    [
+        (0.0, "exit", 2),
+        (0.1, "station", 2),
+        (1.0, "exit", 13),
+        (0.0, "city", 10),
+        (0.5, "city", 10),
+        (1.0, "city", 13),
+    ],
+)
+def test_detour_is_road_factor_times_offset_with_a_floor(offset, precision, tenths):
+    assert services.detour_tenths(offset, precision != "city") == tenths
+
+
+@responses.activate
+def test_exact_positions_use_a_fixed_corridor():
+    Station.objects.filter(city="Dwight").update(location_precision="exit")
+    cache.set(STATIONS_VERSION_KEY, "dwight-exits", None)
+    table = services.station_table()
+    exact = [n for n, s in enumerate(table.stations) if s.location_precision == "exit"]
+    assert exact and all(table.max_offset[n] == 5.0 for n in exact)
+    responses.post(routing.ORS_DIRECTIONS_URL, json=ors_fixture("ors_chicago_stl"))
+    body = services.plan_trip("Chicago, IL", "St. Louis, MO")
+    for stop in body["fuel_stops"]:
+        assert stop["detour_miles"] >= (0.4 if stop["location_precision"] != "city" else 0)
+
+
+@responses.activate
+def test_changing_the_detour_cost_never_serves_an_old_plan(settings):
+    responses.post(routing.ORS_DIRECTIONS_URL, json=ors_fixture("ors_chicago_stl"))
+    services.plan_trip("Chicago, IL", "St. Louis, MO")
+    settings.DETOUR_COST_PER_MILE_USD = Decimal(0)
+    again = services.plan_trip("Chicago, IL", "St. Louis, MO")
+    assert again["meta"]["cache_hit"] is True  # the route is reused
+    assert again["summary"]["detour_cost_per_mile_usd"] == "0.000"

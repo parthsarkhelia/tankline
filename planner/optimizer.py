@@ -20,13 +20,14 @@ class Candidate:
     key: int
     position: int
     price: Decimal
+    detour: int = 0  # one way, route to pump; a stop drives it twice
 
 
 @dataclass(frozen=True)
 class Purchase:
     candidate: Candidate
     fuel: int  # pumped into the tank here, never more than a full tank
-    reserve: int = 0  # reserve used to reach the first station, repaid here
+    reserve: int = 0  # reserve used to reach the first pump, repaid here
 
 
 class RangeGapError(Exception):
@@ -38,89 +39,162 @@ class RangeGapError(Exception):
         self.to_position = to_position
 
 
-def plan_purchases(candidates, length, start_fuel=0, tank=TANK_TENTHS, min_fill=0, stop_cost=Decimal(0)):
-    """Return the purchases that minimise total cost plus `stop_cost` per stop, then the number of stops.
+@dataclass(frozen=True)
+class _Stop:
+    """One station's numbers for the programme; `penalty` is its stop and detour cost as a key step."""
 
-    `stop_cost` is one stop's cost in units of price x fuel; 0 means pure purchase cost.
+    price: int
+    detour: int
+    need: int  # route fuel from here to the destination
+    penalty: int
+    reserve: int  # > 0: start fuel cannot reach this first-position pump; on reserve it can, and stops
 
-    Exact dynamic programme over fuel levels: for each station in route order it
-    keeps the best (cost, stops) for every fuel level on arrival. A stop pumps
-    nothing, at least `min_fill`, or whatever fills the tank; a smaller purchase is also
-    allowed when it is exactly what reaches the destination. A truck that cannot reach
-    the first station on its start fuel runs on reserve and repays it there, on top of that stop's fill.
+
+def plan_purchases(
+    candidates,
+    length,
+    start_fuel=0,
+    tank=TANK_TENTHS,
+    min_fill=0,
+    stop_cost=Decimal(0),
+    detour_cost=Decimal(0),
+):
+    """Return the purchases that minimise total cost plus penalties, then the number of stops.
+
+    Each stop costs `stop_cost` plus `detour_cost` per unit of detour driven (to the pump and back),
+    both in units of price x fuel; 0 means pure purchase cost.
+
+    Exact dynamic programme over fuel levels: for each station in route order it keeps the best
+    (cost, stops) for every fuel level on arrival at its exit. A stop drives `detour` to the pump
+    (arrival fuel must cover it), buys there (the tank cap applies at the pump) and drives `detour`
+    back. It buys at least `min_fill`, or whatever fills the tank; a smaller purchase is also allowed
+    when it is exactly what gets from the pump to the destination. A pump at the first route position
+    that the start fuel cannot reach may still be the first stop: the truck runs on reserve to it and
+    repays that there (detour included), on top of that stop's fill.
     """
     start_fuel = min(start_fuel, tank)
     if start_fuel >= length:
         return []
-    ordered = sorted(
-        (c for c in candidates if 0 <= c.position <= length), key=lambda c: (c.position, c.price)
-    )
-    # Stations share city-centroid positions; a dearer one at the same spot is never the better buy.
-    path = [c for n, c in enumerate(ordered) if n == 0 or c.position != ordered[n - 1].position]
+    path = _path(candidates, length)
     _check_gaps(path, length, tank)
 
-    reserve = max(0, path[0].position - start_fuel)
-    # One stop adds stop_step to a key. Keys stay far below _INF (~2.3e18): the largest
-    # realistic cost key is ~6e16 and each stop adds ~1.8e14 (a $20 stop at 10 mpg).
-    stop_step = int(stop_cost * _PRICE_SCALE) * _STOP_WEIGHT + 1
+    first = path[0].position
     levels = np.arange(tank + 1, dtype=np.int64)
     arrive = np.full(tank + 1, _INF, dtype=np.int64)
-    arrive[start_fuel + reserve - path[0].position] = 0
-    sources = []  # per station: arrival fuel behind each leaving level (-1 = none bought)
+    if start_fuel >= first:
+        arrive[start_fuel - first] = 0
+    stops = [
+        _Stop(
+            price=int(c.price * _PRICE_SCALE),
+            detour=c.detour,
+            need=length - c.position,
+            # Keys are money x 1e8 x 1024 (+ stops). At the validated maxima they stay below _INF (~2.3e18)
+            # with room to spare: fuel under $20/gal over <= 40,000 tenths (a 4,000-mile trip with detours)
+            # is <= 8e5 x 1.024e11 = 8.2e16; one stop at STOP_COST_USD $1,000 (1e5) plus a 52-mile round
+            # trip (20-mile corridor x 1.3, both ways; 520 tenths) at DETOUR_COST_PER_MILE_USD $20 (200 per
+            # tenth, 1.04e5) is 2.04e5 x 1.024e11 = 2.1e16, so ~100 such stops fit. Anything at or above
+            # _INF is treated as unreachable, and _INF plus one step is far below int64's 9.2e18.
+            penalty=int((stop_cost + 2 * c.detour * detour_cost) * _PRICE_SCALE) * _STOP_WEIGHT + 1,
+            reserve=first + c.detour - start_fuel
+            if c.position == first and start_fuel < first + c.detour <= tank
+            else 0,
+        )
+        for c in path
+    ]
+    sources = []  # per station: arrival fuel behind each leaving level (-1 none bought, -2 reserve stop)
     end_key, end_fuel = _INF, 0  # set by the last station; path is never empty
-    best_finish = (_INF, None, None)  # key, station index, arrival fuel of a final small top-up
+    best_finish = (_INF, None, None)  # key, station index, arrival fuel (-2 = reserve stop) of a final top-up
 
-    for i, station in enumerate(path):
-        price = int(station.price * _PRICE_SCALE)
-        stop = stop_step
-        if i == 0 and reserve > 0:  # the reserve stop happens anyway: count it once, charge the reserve here
-            arrive = np.where(arrive < _INF, arrive + reserve * price * _STOP_WEIGHT + stop_step, _INF)
-            stop = 0
-
-        need = length - station.position  # fuel that reaches the destination from here
-        if need <= tank:
-            small = (arrive < _INF) & (levels < need) & (need - levels < min_fill)
-            if small.any():
-                keys = np.where(small, arrive + (need - levels) * price * _STOP_WEIGHT + stop, _INF)
-                f = int(keys.argmin())
-                if keys[f] < best_finish[0]:
-                    best_finish = (int(keys[f]), i, f)
-
-        leave, source = arrive.copy(), np.full(tank + 1, -1, dtype=np.int64)
-        if min_fill <= tank:
-            base = np.where(arrive < _INF, arrive - levels * price * _STOP_WEIGHT, _INF)
-            run_min = np.minimum.accumulate(base)
-            run_arg = np.maximum.accumulate(np.where(base == run_min, levels, 0))
-            g = levels[min_fill:]
-            bought = np.where(
-                run_min[: len(g)] < _INF, run_min[: len(g)] + g * price * _STOP_WEIGHT + stop, _INF
-            )
-            better = bought < leave[min_fill:]
-            leave[min_fill:] = np.where(better, bought, leave[min_fill:])
-            source[min_fill:] = np.where(better, run_arg[: len(g)], -1)
-        # A tank too full to take the minimum may still be topped up to full.
-        if min_fill > 0:
-            topup = np.where(arrive < _INF, arrive + (tank - levels) * price * _STOP_WEIGHT + stop, _INF)
-            topup[tank] = _INF  # arriving full buys nothing
-            f = int(topup.argmin())
-            if topup[f] < leave[tank]:
-                leave[tank] = topup[f]
-                source[tank] = f
+    for i, stop in enumerate(stops):
+        leave, source, finish = _station(arrive, levels, stop, tank, min_fill)
+        if finish[0] < best_finish[0]:
+            best_finish = (finish[0], i, finish[1])
         sources.append(source)
-
         nxt = path[i + 1].position if i + 1 < len(path) else length
-        gap = nxt - station.position
+        gap = nxt - path[i].position
         arrive = np.full(tank + 1, _INF, dtype=np.int64)
         arrive[: tank + 1 - gap] = leave[gap:]
         if i + 1 == len(path):
             end_key = int(arrive.min())
             end_fuel = int(arrive.argmin())
-        elif not (arrive < _INF).any() and best_finish[1] is None:
-            raise RangeGapError(station.position, nxt)
+        elif gap > 0 and not (arrive < _INF).any() and best_finish[1] is None:
+            raise RangeGapError(path[i].position, nxt)
 
     if min(end_key, best_finish[0]) >= _INF:
         raise RangeGapError(path[-1].position, length)
-    return _trace(path, sources, reserve, length, end_key, end_fuel, best_finish)
+    return _trace(path, stops, sources, length, (end_key, end_fuel), best_finish)
+
+
+def _path(candidates, length):
+    """Stations on the route in order, minus any that another at the same spot beats on price and detour."""
+    ordered = sorted(
+        (c for c in candidates if 0 <= c.position <= length), key=lambda c: (c.position, c.price, c.detour)
+    )
+    path, nearest = [], {}  # position -> smallest detour kept there
+    for c in ordered:
+        if c.detour < nearest.get(c.position, _INF):
+            path.append(c)
+            nearest[c.position] = c.detour
+    return path
+
+
+def _station(arrive, levels, stop, tank, min_fill):
+    """Leave-level keys and their sources after passing or stopping, and the best final top-up here."""
+    price, d = stop.price * _STOP_WEIGHT, stop.detour
+    leave, source = arrive.copy(), np.full(tank + 1, -1, dtype=np.int64)
+    finish = (_INF, None)
+    if d > tank:
+        return leave, source, finish
+    out = levels[: tank + 1 - d]  # leaving levels a stop can produce: the tank cap holds at the pump
+    reach = (arrive < _INF) & (levels >= d)  # arrival fuel covers the drive to the pump
+
+    # Buy g >= min_fill and leave with l - 2d + g: for each leaving level, the cheapest arrival
+    # level l <= out + 2d - min_fill.
+    if min_fill <= tank:
+        base = np.where(reach, arrive - levels * price, _INF)
+        run_min = np.minimum.accumulate(base)
+        run_arg = np.maximum.accumulate(np.where(base == run_min, levels, 0))
+        k = np.minimum(out + 2 * d - min_fill, tank)
+        ok = k >= d
+        k = np.clip(k, 0, tank)
+        bought = np.where(ok & (run_min[k] < _INF), run_min[k] + (out + 2 * d) * price + stop.penalty, _INF)
+        _improve(leave, source, out, bought, run_arg[k])
+    # A tank too full to take the minimum may still be topped up to full.
+    if min_fill > 0:
+        topup = np.where(
+            reach & (levels - d < tank), arrive + (tank + d - levels) * price + stop.penalty, _INF
+        )
+        f = int(topup.argmin())
+        _improve(leave, source, out[-1:], topup[f : f + 1], np.array([f]))
+    # A final purchase below the minimum that exactly reaches the destination from the pump.
+    if stop.need + d <= tank:
+        g = stop.need + 2 * d - levels
+        small = reach & (g > 0) & (g < min_fill)
+        keys = np.where(small, arrive + g * price + stop.penalty, _INF)
+        f = int(keys.argmin())
+        finish = (int(keys[f]), f)
+    if stop.reserve:
+        finish = min(finish, _reserve_stop(leave, source, out, stop, tank, min_fill), key=lambda x: x[0])
+    return leave, source, finish
+
+
+def _reserve_stop(leave, source, out, stop, tank, min_fill):
+    """The truck reaches this pump empty on reserve, repays it and buys g, leaving with g - detour."""
+    price, d = stop.price * _STOP_WEIGHT, stop.detour
+    base = stop.reserve * price + stop.penalty
+    g = out + d
+    allowed = (g >= min_fill) | (g == tank) | (g == 0)
+    _improve(leave, source, out, np.where(allowed, base + g * price, _INF), np.full(len(out), -2))
+    g = stop.need + d
+    if 0 < g < min_fill and g <= tank:
+        return (base + g * price, -2)
+    return (_INF, None)
+
+
+def _improve(leave, source, out, keys, arrival):
+    better = keys < leave[out]
+    leave[out] = np.where(better, keys, leave[out])
+    source[out] = np.where(better, arrival, source[out])
 
 
 def _check_gaps(path, length, tank):
@@ -133,32 +207,38 @@ def _check_gaps(path, length, tank):
             raise RangeGapError(a, b)
 
 
-def _trace(path, sources, reserve, length, end_key, end_fuel, best_finish):
+def _trace(path, stops, sources, length, end, best_finish):
     """Walk the recorded choices back from the cheapest way to finish."""
-    pumped = {}
-    if best_finish[0] < end_key:
-        _, last, fuel = best_finish
-        pumped[last] = length - path[last].position - fuel
-        level = fuel  # arrival fuel at `last`
-        i = last - 1
+    pumped, reserve_at = {}, None
+    if best_finish[0] < end[0]:
+        _, i, fuel = best_finish
+        if fuel == -2:
+            pumped[i], reserve_at = stops[i].need + stops[i].detour, i
+        else:
+            pumped[i] = stops[i].need + 2 * stops[i].detour - fuel
+        level = fuel  # arrival fuel at station i
     else:
-        level = end_fuel + (length - path[-1].position)  # fuel on leaving the last station
         i = len(path) - 1
-        level = _undo_purchase(sources, i, level, pumped)
+        level = end[1] + (length - path[-1].position)  # fuel on leaving the last station
+        level = _undo_purchase(stops[i], sources[i], level, pumped, i)
+    while level != -2 and i > 0:
         i -= 1
-    while i >= 0:
         level += path[i + 1].position - path[i].position  # fuel on leaving station i
-        level = _undo_purchase(sources, i, level, pumped)
-        i -= 1
-    if reserve:
-        pumped.setdefault(0, 0)
-    return [Purchase(path[i], pumped[i], reserve if i == 0 else 0) for i in sorted(pumped)]
+        level = _undo_purchase(stops[i], sources[i], level, pumped, i)
+    if level == -2 and reserve_at is None:
+        reserve_at = i
+    if reserve_at is not None:
+        pumped.setdefault(reserve_at, 0)  # a reserve stop with no detour may buy nothing more
+    return [Purchase(path[i], pumped[i], stops[i].reserve if i == reserve_at else 0) for i in sorted(pumped)]
 
 
-def _undo_purchase(sources, i, level, pumped):
-    """Given fuel on leaving station i, record what was bought there and return fuel on arrival."""
-    arrival = int(sources[i][level])
-    if arrival < 0:
+def _undo_purchase(stop, source, level, pumped, i):
+    """Given fuel on leaving station i, record what was bought there; return arrival fuel (-2 = reserve)."""
+    arrival = int(source[level])
+    if arrival == -1:
         return level
-    pumped[i] = level - arrival
+    if arrival == -2:
+        pumped[i] = level + stop.detour
+        return -2
+    pumped[i] = level - arrival + 2 * stop.detour
     return arrival
