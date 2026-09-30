@@ -63,7 +63,7 @@ loaded):
 
 65% of US stations sit at an exit or a same-brand pump. Exit matches lie a median 3.9 km (90th
 percentile 11.7 km) from their city centroid, which is the error the old placement carried. Known
-limits: 511 rows with same-brand candidates were left at `city` because the candidates were too far
+limits (US and Canada together): 511 rows with same-brand candidates were left at `city` because the candidates were too far
 apart to choose; 287 exit addresses matched no junction (exit missing or unnumbered in OSM, or an
 address error in the price list, such as "I-42" for I-41). Station data (C) OpenStreetMap
 contributors, ODbL.
