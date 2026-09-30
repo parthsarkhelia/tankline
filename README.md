@@ -1,79 +1,61 @@
 # tankline
 
-Given a start and a finish inside the contiguous USA, tankline plans the cheapest fuel stops for a truck
-(500 mile range, 10 mpg, 50 gallon tank) using the OPIS price list in `data/fuel-prices.csv`. It returns the route, each
-fuel stop with the gallons bought and the cost, and the total money spent on fuel. It minimises fuel
-cost plus a per-stop time cost; tolls, hours of service, traffic and brand preferences are out of scope.
+[![ci](https://img.shields.io/github/actions/workflow/status/parthsarkhelia/tankline/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=ci)](https://github.com/parthsarkhelia/tankline/actions/workflows/ci.yml)
+![coverage](https://img.shields.io/badge/coverage-81%25-yellowgreen?style=flat-square)
+[![ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json&style=flat-square)](https://github.com/astral-sh/ruff)
+![pyright](https://img.shields.io/badge/types-pyright-2b6cb0?style=flat-square)
+![pylint](https://img.shields.io/badge/pylint-10.00-brightgreen?style=flat-square)
 
+![Python](https://img.shields.io/badge/python-3.14-3776AB?style=flat-square&logo=python&logoColor=white)
+![Django](https://img.shields.io/badge/django-6.1-092E20?style=flat-square&logo=django&logoColor=white)
+![DRF](https://img.shields.io/badge/DRF-3.18-A30000?style=flat-square&logo=django&logoColor=white)
+![Postgres](https://img.shields.io/badge/postgres-17-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/redis-8-FF4438?style=flat-square&logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/docker-compose-2496ED?style=flat-square&logo=docker&logoColor=white)
+![OpenStreetMap](https://img.shields.io/badge/map%20data-OpenStreetMap-7EBC6F?style=flat-square&logo=openstreetmap&logoColor=white)
+
+**Where should a truck buy diesel between two US cities?** Give tankline a start and a finish; it returns
+the truck route, the cheapest realistic fuel stops, how much to buy at each, and the total fuel bill,
+with a map.
+
+![Chicago to Denver: three fuel stops at interstate exits, $292.70](docs/images/map-chicago-denver.png)
+
+## What it does
+
+- **Route**: one call to OpenRouteService (truck profile), or the public OSRM server when there is no key.
+- **Stops**: picks pumps from ~6,700 priced US and Canadian truck stops within a few miles of the route.
+- **Cost**: an exact optimiser for a truck with a 500-mile range (50 gal, 10 mpg), cheapest fuel first.
+
+```mermaid
+flowchart LR
+    A["start, finish"] --> B["Route<br>ORS / OSRM"]
+    B --> C["Stations near<br>the route"]
+    C --> D["Optimiser"]
+    D --> E["Stops, gallons,<br>total cost, map"]
 ```
-GET /api/v1/plan/?start=Detroit, MI&finish=Chicago, IL
-```
-
-The response below is trimmed (route geometry and some per-stop fields left out). It is a first, uncached
-request on the real price list with OSRM routing.
-
-```json
-{
-  "route": {
-    "distance_miles": 277.5,
-    "duration_hours": 5.3,
-    "provider": "osrm",
-    "profile": "driving"
-  },
-  "fuel_stops": [
-    { "stop": 1, "name": "EXXON", "city": "Redford", "state": "MI", "price_per_gallon": "3.699", "mile": 10.7, "off_route_miles": 0.7, "detour_miles": 2.0, "gallons": "27.85", "reserve_gallons": "0.10", "cost": "103.39", "location_precision": "city" }
-  ],
-  "summary": {
-    "stops": 1,
-    "gallons_purchased": "27.95",
-    "gallons_burned": "27.95",
-    "total_cost": "103.39",
-    "start_fuel_miles": 0.0,
-    "range_miles": 500,
-    "mpg": 10,
-    "stop_cost_usd": "18.00",
-    "detour_cost_per_mile_usd": "1.854",
-    "detour_miles": 2.0,
-    "route_miles_driven": 279.5
-  },
-  "assumptions": [
-    "Assumes the truck starts with an empty tank and fills up at the station near the start that makes the trip cheapest; ..."
-  ],
-  "meta": {
-    "external_calls": 1,
-    "cache_hit": false,
-    "elapsed_ms": 2049
-  },
-  "map_url": "http://localhost:8000/map/?start=Detroit%2C+MI&finish=Chicago%2C+IL&start_fuel_miles=0"
-}
-```
-
-`map_url` opens a Leaflet map of the route and stops.
 
 ## Quick start
 
-Prices come from `data/fuel-prices.csv`, a retail diesel price list of US and Canadian truck stops that is
-included in the repository.
-
-### Docker (Postgres and Redis included)
-
 ```bash
+git clone https://github.com/parthsarkhelia/tankline && cd tankline
 docker compose up --build
+open "http://localhost:8000/map/?start=Chicago,%20IL&finish=Denver,%20CO"
 ```
 
-No `.env` is needed. Optionally `cp .env.example .env`, add an ORS key and set `ROUTING_PROVIDER=ors`
-for truck routing; compose picks it up. Without a key the app uses the public OSRM server (car profile)
-automatically. Port 8000 busy? `TANKLINE_PORT=8080 docker compose up --build`.
+> [!NOTE]
+> No API key or `.env` is needed. The container migrates Postgres, loads the stations and starts gunicorn with Redis for caching. Health: `/healthz`, interactive docs: `/api/docs/`.
 
-On start the container migrates the database, loads the stations from the CSV and starts gunicorn.
-When it is up:
+Optional settings (`cp .env.example .env`):
 
-- API: <http://localhost:8000/api/v1/plan/?start=Chicago%2C+IL&finish=Denver%2C+CO>
-- Map: <http://localhost:8000/map/?start=Chicago%2C+IL&finish=Denver%2C+CO>
-- Interactive docs: <http://localhost:8000/api/docs/>
-- Health: <http://localhost:8000/healthz> (503 until stations are loaded)
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `ROUTING_PROVIDER`, `ORS_API_KEY` | `osrm`, empty | Set `ors` and a free key for truck routing (`driving-hgv`). |
+| `TANKLINE_PORT` | `8000` | Host port, if 8000 is taken. |
+| `STOP_COST_USD` | `18` | Time cost of one stop; `0` gives the pure cheapest-fuel plan. |
+| `DETOUR_COST_PER_MILE_USD` | `1.854` | Cost of each mile driven off the route to a pump. |
 
-### Local (SQLite)
+<details>
+<summary>Run without Docker (SQLite, no Redis)</summary>
 
 ```bash
 cp .env.example .env
@@ -83,151 +65,133 @@ uv run --env-file .env manage.py load_stations
 uv run --env-file .env manage.py runserver
 ```
 
-Every `manage.py` command needs `--env-file .env` so Django finds its secret key (or set `DJANGO_DEBUG=1`).
+</details>
 
-`ROUTING_PROVIDER` defaults to `osrm`: car routing on the public OSRM demo server, no key needed. Set
-`ROUTING_PROVIDER=ors` and `ORS_API_KEY` for OpenRouteService truck routing (`driving-hgv`), which falls
-back to OSRM on quota, timeout or server errors. The response says which one answered in `route.provider`.
+## Try it
 
-## API
+```
+GET /api/v1/plan/?start=Chicago, IL&finish=Denver, CO&start_fuel_miles=0
+```
 
-`GET /api/v1/plan/`, all parameters in the query string.
+Places can be `City, ST`, a ZIP code or `lat,lng`. Trimmed response:
 
-| Parameter | Required | Description |
-| --- | --- | --- |
-| `start` | yes | Start place (max 120 characters). |
-| `finish` | yes | Finish place. |
-| `start_fuel_miles` | no | Range already in the tank at the start, 0 to 500. Default 0 (empty tank). |
+```json
+{
+  "route": { "distance_miles": 1001.1, "duration_hours": 22.9, "profile": "driving-hgv" },
+  "fuel_stops": [
+    { "stop": 1, "name": "QUIKTRIP #7208", "city": "Bellwood", "state": "IL", "mile": 12.5,
+      "price_per_gallon": "3.079", "gallons": "19.81", "cost": "61.06",
+      "detour_miles": 0.4, "location_precision": "exit" },
+    { "stop": 2, "name": "KUM & GO #0267", "city": "Tipton", "state": "IA", "mile": 197.7, "...": "..." },
+    { "stop": 3, "name": "AKAL TRAVEL CENTER", "city": "Waco", "state": "NE", "mile": 557.9, "...": "..." }
+  ],
+  "summary": { "stops": 3, "gallons_purchased": "100.23", "total_cost": "292.70" },
+  "meta": { "external_calls": 0, "cache_hit": true, "elapsed_ms": 12 },
+  "map_url": "http://localhost:8000/map/?start=Chicago%2C+IL&finish=Denver%2C+CO&start_fuel_miles=0"
+}
+```
 
-Accepted place formats: `City, ST` (or full state name, or `City ST`), a 5 digit ZIP code (or ZIP+4),
-and `lat,lng`. Other text is sent to the geocoder. A city name that exists in several states, such as
-`Springfield`, is rejected with the candidate list; add the state.
-
-| Response field | Meaning |
+| Field | Meaning |
 | --- | --- |
-| `start`, `finish` | The place as resolved: name, coordinates, and what resolved it. |
-| `route` | Distance in miles, duration in hours, routing `provider`, `profile`, and GeoJSON `geometry`. |
-| `fuel_stops[]` | Stops in route order. |
-| `fuel_stops[].mile` | Distance from the start along the route. |
-| `fuel_stops[].price_per_gallon` | Station price, 3 decimals. |
-| `fuel_stops[].gallons`, `cost` | Gallons bought at the stop and their cost (`gallons` times the 3 decimal price, to the cent). |
-| `fuel_stops[].reserve_gallons` | Gallons burned before the first pump (at least the drive to it) and paid for there (see Assumptions). Zero after the first stop. |
-| `fuel_stops[].off_route_miles` | Straight-line offset of the station position from the route. |
-| `fuel_stops[].detour_miles` | Estimated road miles to the pump and back (1.3 x offset each way, at least 0.2 mile for exit and station positions, 1 mile for city positions). |
-| `fuel_stops[].country`, `lat`, `lng`, `location_precision` | Station country and position; precision is `exit` (OpenStreetMap exit), `station` (a same-brand OpenStreetMap pump, possibly one of several within 5 miles) or `city` (city centre). |
-| `summary.total_cost` | Total fuel cost, USD (stop and detour costs are not included). |
-| `summary.stop_cost_usd`, `detour_cost_per_mile_usd` | Per-stop time cost and per-detour-mile cost the plan was optimised with, USD. |
-| `summary.detour_miles`, `route_miles_driven` | All detours, and route distance plus detours. |
-| `summary.gallons_burned` | Fuel used by the route and the detours (`route_miles_driven` / 10 mpg). |
-| `summary.gallons_purchased` | Gallons paid for; equals `gallons_burned` on an empty-tank start. |
-| `assumptions[]` | Notes that apply to this plan. |
-| `meta` | `external_calls` made for this request, `cache_hit`, `elapsed_ms`. |
-| `map_url` | Map page for the same request (recomputed from cache if warm; never 404s). |
+| `mile` | Distance from the start along the route. |
+| `gallons`, `cost` | Bought at this stop; `total_cost` is fuel money only. |
+| `detour_miles` | Estimated drive from the route to the pump and back. |
+| `location_precision` | `exit` or `station` (matched in OpenStreetMap) or `city` (city centre only). |
+| `external_calls`, `cache_hit` | A repeated request is served from cache with no outside call. |
 
-Errors are `{"error": {"code": ..., "message": ...}}`.
-
-| Status | `error.code` | When |
-| --- | --- | --- |
-| 400 | `invalid_request` | Missing or malformed parameter. |
-| 400 | `location_not_found` | Place, ZIP or text could not be resolved. |
-| 400 | `ambiguous_location` | Several places match; `candidates` lists them. |
-| 400 | `outside_service_area` | Alaska, Hawaii, Canada, Mexico or open water. |
-| 400 | `same_location` | Start and finish are the same place. |
-| 422 | `route_not_possible` | The routing service found no route, or the route is too long. |
-| 422 | `fuel_gap` | A stretch of route has no station within 500 miles. |
-| 429 | `throttled` | Rate limit (30 requests per minute per address by default). |
-| 502 | `routing_unavailable` | Neither routing provider answered. |
-
-Interactive docs are at `/api/docs/` (OpenAPI schema at `/api/schema/`). A Postman collection with eight
-requests and status assertions is in [`postman/tankline.postman_collection.json`](postman/tankline.postman_collection.json).
+Every field, parameter and error code: [docs/api.md](docs/api.md). A Postman collection is in `postman/`.
 
 ## How it works
 
-Detail and measurements are in [docs/design.md](docs/design.md).
+```mermaid
+flowchart LR
+    R["Resolve places<br>offline lookup"] --> T["Route<br>1 call, cached 7 days"]
+    T --> C["Corridor<br>stations near the line"]
+    C --> B["Borders<br>US only while in the US"]
+    B --> O["Optimiser<br>exact DP"]
+    O --> K["Cache the plan<br>Redis"]
+```
 
-Diagrams (standalone HTML; open in a browser): [architecture](docs/diagrams/architecture.html), [request sequence](docs/diagrams/request-sequence.html), [station data pipeline](docs/diagrams/station-data.html), [optimiser](docs/diagrams/optimiser.html).
+1. **Resolve**: `City, ST`, ZIP and coordinates are looked up in committed Census data; only other free text is geocoded.
+2. **Route**: OpenRouteService `driving-hgv`, falling back to OSRM on quota, timeout or error.
+3. **Corridor**: stations are projected onto the route with numpy; kept within 5 miles (exit or pump) or up to 20 miles (city-level).
+4. **Borders**: Canadian stations count only where the route itself is in Canada.
+5. **Optimiser**: dynamic programming over the fuel level in tenths of a mile, checked against brute force in the tests.
+6. **Cache**: routes and plans live in Redis, keyed by the station data version and the cost settings.
 
-**Data.** `load_stations` reads the CSV, keeps the lowest price for each OPIS ID, drops unreadable or
-implausible prices and places each station at its OpenStreetMap exit or fuel station when one was
-matched, else at its city's coordinates. Both are committed (`stations/data/`), so no geocoding happens
-at request time.
+| [![architecture](docs/images/diagram-architecture.png)](docs/diagrams/architecture.html) | [![request](docs/images/diagram-request-sequence.png)](docs/diagrams/request-sequence.html) | [![station data](docs/images/diagram-station-data.png)](docs/diagrams/station-data.html) | [![optimiser](docs/images/diagram-optimiser.png)](docs/diagrams/optimiser.html) |
+| :---: | :---: | :---: | :---: |
+| Architecture | Request sequence | Station data | Optimiser |
 
-**Routing.** One routing call per new start/finish pair. OpenRouteService with the `driving-hgv` profile
-is the primary provider, the public OSRM server the fallback. Routes and plans are cached for a week
-(fallback routes for 10 minutes), so a repeated request makes no external call.
+The diagrams are interactive HTML; download and open them in a browser. Design notes with measurements: [docs/design.md](docs/design.md).
 
-**Corridor.** Stations are placed on the route by projecting their coordinates onto it. A station at an
-exit or pump is a candidate within 5 miles of the route; one at a city centre within
-`min(5 + city radius, 20)` miles, so large cities count from further out than small towns.
+### What "optimal" means
 
-**Borders.** Canadian stations are kept in the data but are candidates only where the route itself is in
-Canada. A point of unknown country (water, border slivers) does not exclude a station.
+**Plan cost = fuel + $18 per stop + $1.854 per detour mile.** The two extra terms come from ATRI's
+published truck operating costs ([derivation](docs/design.md#optimiser)). They only choose the plan;
+`total_cost` stays fuel money. Without them the cheapest plan stops for a gallon and a half just after a fill:
 
-**Optimiser.** An exact dynamic programme over fuel levels finds the cheapest purchases under the
-minimum-fill rule, counting a per-stop time cost and each detour to the pump (its fuel, its range and a
-per-mile cost). Ties go to the plan with fewer stops.
+| New York to Los Angeles | Stops | Smallest fill | Fuel bill |
+| --- | --- | --- | --- |
+| Fuel cost only (`STOP_COST_USD=0`) | 16 | 1.28 gal | $852.67 |
+| With the $18 stop cost | 7 | 18.53 gal | $860.10 (+0.9%) |
 
 ## Assumptions
 
-- Stations sit at their OpenStreetMap exit (52% of US stations) or at a matched same-brand fuel station
-  (14%), else at their city's coordinates (35%). 6,724 of 6,738 distinct stations are placed (14
-  skipped, no coordinates). An exit match needs the exit number on the named Interstate. A station
-  match is kept only when every same-brand candidate lies within 5 miles of the chosen one (or it is
-  the only truck stop), so `station` means a same-brand pump within 5 miles of the priced one could be
-  the one; otherwise the station stays at `city`. Exit and station positions and a few hundred city
-  coordinates come from OpenStreetMap (Overpass and Nominatim, data as of 2026-09-30), (c)
-  OpenStreetMap contributors, ODbL; the other cities from the US Census Gazetteer.
-- One row per OPIS ID, lowest price kept. Prices are treated as USD per gallon.
-- The truck starts empty unless `start_fuel_miles` says otherwise. Stations within the start city's
-  corridor count as mile 0, so the trip begins with a fill at one of them; the drive to its pump is
-  paid there as `reserve_gallons`.
-- With no station there, the truck runs on reserve to the first station and repays that fuel there
-  (`reserve_gallons`), so every mile is paid for and no fill exceeds 50 gallons.
-- Detours count: a stop drives to the pump and back (1.3 x the straight-line offset each way, an
-  assumed road factor; at least 0.2 mile each way at an exit or station, 1 mile for a station known only by its city), needs that fuel on arrival,
-  buys within the tank at the pump, and costs $1.854 per detour mile on top of the fuel (ATRI non-fuel
-  cost per mile; `DETOUR_COST_PER_MILE_USD`).
-- Minimum fill 10 gal per stop, unless the stop fills the tank to full or is the final purchase needed to reach the destination.
-- 422 `fuel_gap` only when a stretch has no station within 500 miles.
-- Optimal = cheapest fuel plus an $18 per-stop time cost (from ATRI operating-cost data; see docs/design.md), so plans skip trivial top-ups. Set STOP_COST_USD=0 for pure fuel cost.
-- No tolls, hours of service or brand preferences. Detours are straight-line estimates, not routed.
-- Canadian stations count only while the route is in Canada. In the data, Sarnia diesel is $3.31 against
-  a US median of $3.40, worth at most about $4.50 per tank, which does not justify a border crossing.
-- The OSRM fallback uses a car profile, so its durations are shorter than a truck's. ORS `driving-hgv`
-  durations are longer.
+| Topic | Assumption | Change it |
+| --- | --- | --- |
+| Truck | 500-mile range, 10 mpg, 50 gal tank. | `VEHICLE_RANGE_MILES`, `VEHICLE_MPG` |
+| Start | Empty tank; the first fill is at a station in the start city. | `start_fuel_miles` |
+| Fill | At least 10 gal per stop, unless filling to full or the final top-up. | `VEHICLE_MIN_FILL_GALLONS` |
+| Prices | USD per gallon from `data/fuel-prices.csv`; lowest price per station. | replace the CSV |
+| Detours | 1.3 × straight-line distance each way, min 0.2 mi (1 mi at city level). | `DETOUR_COST_PER_MILE_USD` for the cost |
+| Borders | No border crossing just for cheaper diesel. | none |
+
+## Limitations
+
+> [!WARNING]
+> - **Prices are a snapshot**, not live; station positions are an OpenStreetMap snapshot from 2026-09-30.
+> - **About a third of stations are at city level**: their position and detour are estimates.
+> - **Detours are straight-line estimates**, not routed.
+> - **No tolls, hours of service, traffic, opening hours or brand preferences.**
+> - **Without an ORS key, routing uses OSRM's car profile**, so durations are shorter than a truck's.
+> - **A stretch with no station within 500 miles** returns `422 fuel_gap`.
 
 ## Performance
 
-Docker Compose on an Apple Silicon laptop, real price list, routing by the public OSRM demo server. Figures are from
-a warm server (`--preload` loads the lookup tables once before the workers fork) and vary run to run.
+Docker Compose on an Apple Silicon laptop, real price list.
 
 | Request | Time |
 | --- | --- |
-| New York, NY to Los Angeles, CA, cold (1 external call) | 1.03 to 1.53 s end to end |
-| of which the routing provider (`fetch_route` timed directly, 5 calls) | 0.41 to 1.45 s |
-| of which our planning (route cached, new `start_fuel_miles`) | 58 to 105 ms |
-| Same request, cached (0 external calls) | 1 to 6 ms |
-| Miami, FL to Seattle, WA, warm server, route cached, new plan | 64 to 69 ms |
+| New York to Los Angeles, first request (1 routing call) | 1.0 to 1.5 s, mostly the routing provider |
+| Same trip, route cached, new plan | 60 to 105 ms |
+| Same request again (cached plan) | 1 to 12 ms |
 
-"New plan" means a new `start_fuel_miles` value: the route comes from the cache and the fuel plan is recomputed over
-the full station set. The routing provider dominates a cold request; planning stays around 0.1 s or less.
-
-## Development
+<details>
+<summary>Development</summary>
 
 ```bash
 uv run pytest                 # synthetic stations, recorded routes, network blocked
 uv run ruff check . && uv run ruff format --check . && uv run pyright
 uv run pylint config planner stations tests
-uv run --env-file .env manage.py build_geodata --fetch-missing   # rebuild coordinate files
-uv run --env-file .env manage.py build_geodata --positions       # rebuild exit/station positions (Overpass)
-uv run --env-file .env manage.py warm_routes                     # before a demo
+uv run --env-file .env manage.py build_geodata --positions   # rebuild exit/station positions (Overpass)
+uv run --env-file .env manage.py warm_routes                 # cache the Postman demo routes
 ```
 
-In VS Code select `.venv` as the Python interpreter so the Pylint and Pylance extensions load the project's plugins and stubs.
+CI runs ruff, pyright, pylint and pytest on every push. Test coverage is 81% overall and about 96% for
+the code that serves requests; the rest is the offline data build, which needs the network.
 
-Tests use `tests/fixtures/fuel-prices-sample.csv`: real city coordinates, invented names and prices.
+The free OpenRouteService key allows 200 truck routes a day; `ORS_DAILY_BUDGET` (default 150) caps
+tankline's use, after which OSRM answers.
 
-The free OpenRouteService key allows 200 truck routes per day (measured). `ORS_DAILY_BUDGET` (default
-150) caps the calls tankline makes; past it, OSRM answers. `warm_routes` plans the four demo routes used
-by the Postman collection once, so the demo is served from the cache. It spends ORS quota when
-`ROUTING_PROVIDER=ors`, so run it once, not repeatedly.
+</details>
+
+<details>
+<summary>Data sources and credits</summary>
+
+- Fuel prices: `data/fuel-prices.csv`, a retail diesel price list of US and Canadian truck stops.
+- Exits and fuel stations: © OpenStreetMap contributors, ODbL (Overpass and Nominatim).
+- City and ZIP coordinates: US Census Gazetteer. Country borders: Natural Earth.
+- Operating costs: American Transportation Research Institute (ATRI), cited in [docs/design.md](docs/design.md).
+
+</details>
