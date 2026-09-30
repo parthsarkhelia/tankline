@@ -47,7 +47,7 @@ class _Stop:
     detour: int
     need: int  # route fuel from here to the destination
     penalty: int
-    reserve: int  # > 0: the truck may reach this pump only on reserve, and then must stop here
+    reserve: int  # > 0: start fuel cannot reach this first-position pump; on reserve it can, and stops
 
 
 def plan_purchases(
@@ -68,9 +68,9 @@ def plan_purchases(
     (cost, stops) for every fuel level on arrival at its exit. A stop drives `detour` to the pump
     (arrival fuel must cover it), buys there (the tank cap applies at the pump) and drives `detour`
     back. It buys at least `min_fill`, or whatever fills the tank; a smaller purchase is also allowed
-    when it is exactly what gets from the pump to the destination. A truck that reaches no pump on
-    its start fuel runs on reserve to one at the first route position and repays it there (detour
-    included), on top of that stop's fill.
+    when it is exactly what gets from the pump to the destination. A pump at the first route position
+    that the start fuel cannot reach may still be the first stop: the truck runs on reserve to it and
+    repays that there (detour included), on top of that stop's fill.
     """
     start_fuel = min(start_fuel, tank)
     if start_fuel >= length:
@@ -79,21 +79,24 @@ def plan_purchases(
     _check_gaps(path, length, tank)
 
     first = path[0].position
-    on_reserve = start_fuel < min(c.position + c.detour for c in path)
     levels = np.arange(tank + 1, dtype=np.int64)
     arrive = np.full(tank + 1, _INF, dtype=np.int64)
-    if not on_reserve:
+    if start_fuel >= first:
         arrive[start_fuel - first] = 0
     stops = [
         _Stop(
             price=int(c.price * _PRICE_SCALE),
             detour=c.detour,
             need=length - c.position,
-            # One stop adds `penalty` to a key. Keys stay far below _INF (~2.3e18): the largest
-            # realistic cost key is ~6e16 and a stop adds ~1e15 at most ($18 plus a 50-mile detour).
+            # Keys are money x 1e8 x 1024 (+ stops). At the validated maxima they stay below _INF (~2.3e18)
+            # with room to spare: fuel under $20/gal over <= 40,000 tenths (a 4,000-mile trip with detours)
+            # is <= 8e5 x 1.024e11 = 8.2e16; one stop at STOP_COST_USD $1,000 (1e5) plus a 52-mile round
+            # trip (20-mile corridor x 1.3, both ways; 520 tenths) at DETOUR_COST_PER_MILE_USD $20 (200 per
+            # tenth, 1.04e5) is 2.04e5 x 1.024e11 = 2.1e16, so ~100 such stops fit. Anything at or above
+            # _INF is treated as unreachable, and _INF plus one step is far below int64's 9.2e18.
             penalty=int((stop_cost + 2 * c.detour * detour_cost) * _PRICE_SCALE) * _STOP_WEIGHT + 1,
             reserve=first + c.detour - start_fuel
-            if on_reserve and c.position == first and first + c.detour <= tank
+            if c.position == first and start_fuel < first + c.detour <= tank
             else 0,
         )
         for c in path

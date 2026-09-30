@@ -48,10 +48,10 @@ def test_stop_cost_must_be_zero_or_more(settings, value, expected):
     [
         ("1.854", []),
         ("0", []),
-        ("100", []),
+        ("20", []),
         ("-0.1", ["planner.E004"]),
         ("NaN", ["planner.E004"]),
-        ("101", ["planner.E004"]),
+        ("20.01", ["planner.E004"]),
     ],
 )
 def test_detour_cost_must_be_in_range(settings, value, expected):

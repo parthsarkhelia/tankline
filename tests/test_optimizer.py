@@ -17,8 +17,9 @@ def reference(candidates, length, start_fuel, tank, min_fill=0, stop_cost=0, det
     rejoins with fuel - 2 x detour + bought. Its penalty is stop_cost + 2 x detour x detour_cost.
     A stop pumps at least min_fill, or tops the tank up to full, or buys exactly what takes the
     truck from the pump back to the route and on to the destination (then nothing more is bought).
-    A truck that reaches no pump on start fuel runs on reserve to a station at the first route
-    position, repays the reserve (detour included) there and must stop there; that stop counts once.
+    A station at the first route position whose pump the start fuel cannot reach may be the first stop
+    on reserve: the truck repays the reserve (detour included) there and must stop there; that stop
+    counts once.
     """
     path = sorted(candidates, key=order)
     path.append(Candidate(-1, length, Decimal(0)))
@@ -75,19 +76,16 @@ def reference(candidates, length, start_fuel, tank, min_fill=0, stop_cost=0, det
     stations = path[:last]
     if not stations:  # no station at all: the tank must already cover the trip
         return INF
-    if start_fuel >= min(c.position + c.detour for c in stations):
-        return best_of(
-            INF, *(at(j, start_fuel - c.position) for j, c in enumerate(stations) if c.position <= start_fuel)
-        )
     first = stations[0].position
-    return best_of(
-        INF,
-        *(
-            _add(at(j, c.detour, True), (first + c.detour - start_fuel) * c.price + penalty(c), True)
-            for j, c in enumerate(stations)
-            if c.position == first and first + c.detour <= tank
-        ),
-    )
+    on_start_fuel = [
+        at(j, start_fuel - c.position) for j, c in enumerate(stations) if c.position <= start_fuel
+    ]
+    on_reserve = [
+        _add(at(j, c.detour, True), (first + c.detour - start_fuel) * c.price + penalty(c), True)
+        for j, c in enumerate(stations)
+        if c.position == first and start_fuel < first + c.detour <= tank
+    ]
+    return best_of(INF, *on_start_fuel, *on_reserve)
 
 
 def order(c):
@@ -289,3 +287,11 @@ def test_a_pump_out_of_reach_is_skipped():
     ]
     purchases = plan_purchases(candidates, length=200, tank=100)
     assert [(p.candidate.key, p.fuel) for p in purchases] == [(1, 100), (3, 100)]
+
+
+def test_a_pump_on_the_route_does_not_lock_out_the_other_start_zone_pumps():
+    # From empty, the dearer pump is reachable with no detour; the cheaper one 2 units off the road is
+    # still a valid first stop, reached on reserve.
+    candidates = [Candidate(1, 0, Decimal("3.569"), 0), Candidate(2, 0, Decimal("3.079"), 2)]
+    purchases = plan_purchases(candidates, length=1000, tank=5000, min_fill=100)
+    assert [(p.candidate.key, p.fuel, p.reserve) for p in purchases] == [(2, 1002, 2)]

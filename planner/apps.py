@@ -4,7 +4,7 @@ from django.core.checks import Error, register
 from django.core.checks import Warning as CheckWarning
 
 MAX_STOP_COST_USD = 1000
-MAX_DETOUR_COST_PER_MILE_USD = 100
+MAX_DETOUR_COST_PER_MILE_USD = 20  # about 10x ATRI's $1.854; keeps optimiser keys in range
 
 
 class PlannerConfig(AppConfig):
