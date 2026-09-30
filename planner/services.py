@@ -83,7 +83,7 @@ def plan_trip(start, finish, start_fuel_miles=0.0):
     fuel = round(start_fuel_miles * 10)
     # Stations this close to the start count as mile 0: the trip begins at the cheapest of them.
     start_zone = min(settings.CORRIDOR_BASE_MILES + origin.radius_miles, settings.CORRIDOR_MAX_MILES)
-    plan_key = f"plan:v1:{stations_version()}:{route_key}:{fuel}:{start_zone:.1f}"
+    plan_key = f"plan:v1:{stations_version()}:{route_key}:{fuel}:{start_zone:.1f}:{settings.STOP_COST_USD}"
     plan, route_calls = cache.get(plan_key), 0
     if plan is None:
         route, route_calls = _cached_route(route_key, origin, destination)
@@ -164,6 +164,9 @@ def _choose_stops(route, length, fuel, start_zone):
             min_fill=settings.VEHICLE_MIN_FILL_GALLONS
             * settings.VEHICLE_MPG
             * 10,  # gallons -> tenths of a mile
+            stop_cost=settings.STOP_COST_USD
+            * 10
+            * settings.VEHICLE_MPG,  # dollars -> price x tenths of a mile
         )
     except RangeGapError as gap:
         if not candidates:
@@ -222,6 +225,7 @@ def _summary(length, stops, fuel):
         "start_fuel_miles": fuel / 10,
         "range_miles": settings.VEHICLE_RANGE_MILES,
         "mpg": settings.VEHICLE_MPG,
+        "stop_cost_usd": str(settings.STOP_COST_USD.quantize(CENT)),
     }
 
 

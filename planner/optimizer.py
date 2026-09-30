@@ -38,8 +38,10 @@ class RangeGapError(Exception):
         self.to_position = to_position
 
 
-def plan_purchases(candidates, length, start_fuel=0, tank=TANK_TENTHS, min_fill=0):
-    """Return the purchases that minimise total cost, then the number of stops.
+def plan_purchases(candidates, length, start_fuel=0, tank=TANK_TENTHS, min_fill=0, stop_cost=Decimal(0)):
+    """Return the purchases that minimise total cost plus `stop_cost` per stop, then the number of stops.
+
+    `stop_cost` is one stop's cost in units of price x fuel; 0 means pure purchase cost.
 
     Exact dynamic programme over fuel levels: for each station in route order it
     keeps the best (cost, stops) for every fuel level on arrival. A stop pumps
@@ -58,6 +60,9 @@ def plan_purchases(candidates, length, start_fuel=0, tank=TANK_TENTHS, min_fill=
     _check_gaps(path, length, tank)
 
     reserve = max(0, path[0].position - start_fuel)
+    # One stop adds stop_step to a key. Keys stay far below _INF (~2.3e18): the largest
+    # realistic cost key is ~6e16 and each stop adds ~1.8e14 (a $20 stop at 10 mpg).
+    stop_step = int(stop_cost * _PRICE_SCALE) * _STOP_WEIGHT + 1
     levels = np.arange(tank + 1, dtype=np.int64)
     arrive = np.full(tank + 1, _INF, dtype=np.int64)
     arrive[start_fuel + reserve - path[0].position] = 0
@@ -67,10 +72,10 @@ def plan_purchases(candidates, length, start_fuel=0, tank=TANK_TENTHS, min_fill=
 
     for i, station in enumerate(path):
         price = int(station.price * _PRICE_SCALE)
-        forced = i == 0 and reserve > 0
-        if forced:  # the reserve stop happens anyway: count it once, charge the reserve here
-            arrive = np.where(arrive < _INF, arrive + reserve * price * _STOP_WEIGHT + 1, _INF)
-        stop = 0 if forced else 1
+        stop = stop_step
+        if i == 0 and reserve > 0:  # the reserve stop happens anyway: count it once, charge the reserve here
+            arrive = np.where(arrive < _INF, arrive + reserve * price * _STOP_WEIGHT + stop_step, _INF)
+            stop = 0
 
         need = length - station.position  # fuel that reaches the destination from here
         if need <= tank:
@@ -87,8 +92,9 @@ def plan_purchases(candidates, length, start_fuel=0, tank=TANK_TENTHS, min_fill=
             run_min = np.minimum.accumulate(base)
             run_arg = np.maximum.accumulate(np.where(base == run_min, levels, 0))
             g = levels[min_fill:]
-            ok = run_min[: len(g)] < _INF
-            bought = np.where(ok, run_min[: len(g)] + g * price * _STOP_WEIGHT + stop, _INF)
+            bought = np.where(
+                run_min[: len(g)] < _INF, run_min[: len(g)] + g * price * _STOP_WEIGHT + stop, _INF
+            )
             better = bought < leave[min_fill:]
             leave[min_fill:] = np.where(better, bought, leave[min_fill:])
             source[min_fill:] = np.where(better, run_arg[: len(g)], -1)

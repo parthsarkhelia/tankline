@@ -3,7 +3,7 @@
 Given a start and a finish inside the contiguous USA, tankline plans the cheapest fuel stops for a truck
 (500 mile range, 10 mpg, 50 gallon tank) using the OPIS price list in `data/fuel-prices.csv`. It returns the route, each
 fuel stop with the gallons bought and the cost, and the total money spent on fuel. It minimises fuel
-cost only; tolls, hours of service, traffic and brand preferences are out of scope.
+cost plus a per-stop time cost; tolls, hours of service, traffic and brand preferences are out of scope.
 
 ```
 GET /api/v1/plan/?start=Detroit, MI&finish=Chicago, IL
@@ -21,18 +21,17 @@ request on the real price list with OSRM routing.
     "profile": "driving"
   },
   "fuel_stops": [
-    { "stop": 1, "name": "BP", "city": "Dearborn", "state": "MI", "price_per_gallon": "3.199", "mile": 6.6, "gallons": "13.37", "reserve_gallons": "0.00", "cost": "42.77" },
-    { "stop": 2, "name": "D AVENUE FUEL PLAZA", "city": "Kalamazoo", "state": "MI", "price_per_gallon": "3.099", "mile": 133.7, "gallons": "10.00", "reserve_gallons": "0.00", "cost": "30.99" },
-    { "stop": 3, "name": "Pilot Travel Center #666", "city": "Benton Harbor", "state": "MI", "price_per_gallon": "3.059", "mile": 180.4, "gallons": "4.38", "reserve_gallons": "0.00", "cost": "13.40" }
+    { "stop": 1, "name": "BP", "city": "Dearborn", "state": "MI", "price_per_gallon": "3.199", "mile": 6.6, "gallons": "27.75", "reserve_gallons": "0.00", "cost": "88.77" }
   ],
   "summary": {
-    "stops": 3,
+    "stops": 1,
     "gallons_purchased": "27.75",
     "gallons_burned": "27.75",
-    "total_cost": "87.16",
+    "total_cost": "88.77",
     "start_fuel_miles": 0.0,
     "range_miles": 500,
-    "mpg": 10
+    "mpg": 10,
+    "stop_cost_usd": "18.00"
   },
   "assumptions": [
     "Assumes the truck starts with an empty tank and fills up at the cheapest station near the start. ..."
@@ -112,7 +111,8 @@ and `lat,lng`. Other text is sent to the geocoder. A city name that exists in se
 | `fuel_stops[].reserve_gallons` | Gallons burned before the first station and paid for there (see Assumptions). Zero after the first stop. |
 | `fuel_stops[].off_route_miles` | Straight-line offset of the city centre from the route. |
 | `fuel_stops[].country`, `lat`, `lng`, `location_precision` | Station country and position; precision is always `city`. |
-| `summary.total_cost` | Total fuel cost, USD. |
+| `summary.total_cost` | Total fuel cost, USD (the stop cost is not included). |
+| `summary.stop_cost_usd` | Per-stop time cost the plan was optimised with, USD. |
 | `summary.gallons_burned` | Fuel used by the whole route (distance / 10 mpg). |
 | `summary.gallons_purchased` | Gallons paid for; equals `gallons_burned` on an empty-tank start. |
 | `assumptions[]` | Notes that apply to this plan. |
@@ -158,7 +158,7 @@ from further out than small towns.
 Canada. A point of unknown country (water, border slivers) does not exclude a station.
 
 **Optimiser.** An exact dynamic programme over fuel levels finds the cheapest purchases under the
-minimum-fill rule. Cost ties go to the plan with fewer stops.
+minimum-fill rule, counting a per-stop time cost. Ties go to the plan with fewer stops.
 
 ## Assumptions
 
@@ -172,7 +172,8 @@ minimum-fill rule. Cost ties go to the plan with fewer stops.
   (`reserve_gallons`), so every mile is paid for and no fill exceeds 50 gallons.
 - Minimum fill 10 gal per stop, unless the stop fills the tank to full or is the final purchase needed to reach the destination.
 - 422 `fuel_gap` only when a stretch has no station within 500 miles.
-- Cost only: no detour cost, tolls, hours of service or brand preferences.
+- Optimal = cheapest fuel plus an $18 per-stop time cost (from ATRI operating-cost data; see docs/design.md), so plans skip trivial top-ups. Set STOP_COST_USD=0 for pure fuel cost.
+- No detour cost, tolls, hours of service or brand preferences.
 - Canadian stations count only while the route is in Canada. In the data, Sarnia diesel is $3.31 against
   a US median of $3.40, worth at most about $4.50 per tank, which does not justify a border crossing.
 - The OSRM fallback uses a car profile, so its durations are shorter than a truck's. ORS `driving-hgv`

@@ -50,6 +50,30 @@ only when a stretch of the route has no station within 500 miles.
 Ties. Because the programme minimises (cost, stops) together, the stop count is exactly minimal among
 the cheapest plans, and it is checked against an exhaustive search in the tests.
 
+Stop cost. Pure fuel cost gives silly plans: New York to Los Angeles took 16 stops, with top-ups of 1.28,
+1.90 and 4.50 gallons a few miles after a fill that each saved cents. The objective is therefore fuel cost
+plus a per-stop time cost (`STOP_COST_USD`, default $18), which is added once per stop inside the same
+exact programme (`stop_cost` in `plan_purchases`), so the result is still checked against the exhaustive
+search. The reported `total_cost` stays fuel money only. Derivation:
+
+- ATRI's "Operational Costs of Trucking" 2025 update (2024 data) puts the all-in cost at about $90.89 per
+  truck-hour.
+- ATRI's 2025 report (2024 data) gives $2.260 per mile in total, of which $1.779 is non-fuel (about
+  78.7%). The following year's figures (2025 data, reported by Trucking Info) are $2.336 per mile in
+  total and $1.854 non-fuel (about 79.4%). Both years give a non-fuel share of about 79%. A parked truck
+  burns no fuel, so the non-fuel share applies: 90.89 x 0.79 is about $72 per hour.
+- A fuel stop (exit, queue, pump, pay, re-merge) is assumed to take about 15 minutes. This is an
+  assumption, not a published figure; 10 to 20 minutes gives $12 to $24.
+- 72 x 0.25 is about $18 per stop.
+
+Sources: [ATRI operational costs](https://truckingresearch.org/about-atri/atri-research/operational-costs-of-trucking/);
+[ATRI 2025 report summary (2024 data)](https://truckingresearch.org/2025/07/new-atri-report-shows-trucking-profitability-severly-squeezed-by-high-costs-low-rates/);
+[Trucking Info, 2025 data](https://www.truckinginfo.com/news/trucking-fleets-faced-record-operating-costs-during-third-year-of-freight-recession).
+Measured on the real price list with OSRM routing: New York to Los Angeles goes from 16 stops (fuel
+$852.67, smallest fill 1.28 gal) at $0 to 7 stops (fuel $860.10, smallest fill 18.53 gal) at $18;
+Chicago to Denver goes from 6 stops ($292.38, 10.0 gal) to 3 stops ($293.48, 23.7 gal). Set
+`STOP_COST_USD=0` for pure fuel cost.
+
 ## Corridor
 
 Stations come with city coordinates, not street addresses, so their true position is uncertain by up

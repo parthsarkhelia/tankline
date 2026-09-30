@@ -3,6 +3,8 @@ from django.conf import settings
 from django.core.checks import Error, register
 from django.core.checks import Warning as CheckWarning
 
+MAX_STOP_COST_USD = 1000
+
 
 class PlannerConfig(AppConfig):
     name = "planner"
@@ -18,6 +20,19 @@ def routing_settings(**_kwargs):
                 "ROUTING_PROVIDER is 'ors' but ORS_API_KEY is not set.",
                 hint="Routing will use the public OSRM server; add ORS_API_KEY for truck routing.",
                 id="planner.W001",
+            )
+        ]
+    return []
+
+
+@register()
+def stop_cost_setting(**_kwargs):
+    if not settings.STOP_COST_USD.is_finite() or not 0 <= settings.STOP_COST_USD <= MAX_STOP_COST_USD:
+        return [
+            Error(
+                f"STOP_COST_USD must be between 0 and {MAX_STOP_COST_USD} dollars (larger is unrealistic "
+                "and would overflow the optimiser's integer keys).",
+                id="planner.E003",
             )
         ]
     return []
