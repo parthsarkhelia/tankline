@@ -9,41 +9,55 @@ from planner.optimizer import Candidate, RangeGapError, plan_purchases
 INF = (float("inf"), float("inf"))
 
 
-def reference(candidates, length, start_fuel, tank, min_fill=0, stop_cost=0):
-    """Exhaustive minimum of (cost + stop_cost x stops, stops) over integer purchases, same rules.
+def reference(candidates, length, start_fuel, tank, min_fill=0, stop_cost=0, detour_cost=0):
+    """Exhaustive minimum of (fuel cost + stop penalties, stops) over integer purchases, same rules.
 
-    Returns the (fuel cost, stops) of that argmin. Small inputs only.
-
-    A stop pumps nothing or at least min_fill, except a smaller amount that is exactly
-    what reaches the destination (then nothing more is bought). A truck that cannot reach
-    the first station on start fuel repays the reserve there; that stop counts once.
+    Small inputs only. A stop at station i leaves the route and drives `detour` units to the pump
+    and back: it needs `detour` fuel on arrival, buys at the pump (tank cap applies there) and
+    rejoins with fuel - 2 x detour + bought. Its penalty is stop_cost + 2 x detour x detour_cost.
+    A stop pumps at least min_fill, or tops the tank up to full, or buys exactly what takes the
+    truck from the pump back to the route and on to the destination (then nothing more is bought).
+    A truck that reaches no pump on start fuel runs on reserve to a station at the first route
+    position, repays the reserve (detour included) there and must stop there; that stop counts once.
     """
-    path = sorted(candidates, key=lambda c: (c.position, c.price))
+    path = sorted(candidates, key=order)
     path.append(Candidate(-1, length, Decimal(0)))
     last = len(path) - 1
 
-    def best_of(*options: tuple) -> tuple:
-        return min(options, key=lambda r: INF if r == INF else (r[0] + stop_cost * r[1], r[1]))
+    def penalty(c):
+        return stop_cost + 2 * c.detour * detour_cost
 
-    def buys(i, fuel):
-        """(amount, finishes_here) options at station i with `fuel` on arrival."""
-        to_end = length - path[i].position
-        for buy in range(tank - fuel + 1):
-            if buy == 0 or buy >= min_fill or fuel + buy == tank:
+    def best_of(*options: tuple) -> tuple:
+        return min(options)
+
+    def buys(i, pump):
+        """(amount, finishes_here) options at station i's pump holding `pump` fuel."""
+        c = path[i]
+        to_end = c.detour + length - c.position
+        for buy in range(tank - pump + 1):
+            if buy >= min_fill or (buy > 0 and pump + buy == tank):
                 yield buy, False
-            elif fuel + buy == to_end:
+            elif pump + buy == to_end:
                 yield buy, True
 
     @functools.lru_cache(None)
     def at(i, fuel, forced=False) -> tuple:
+        """Best continuation arriving on the route at station i with `fuel`."""
         if i == last:
             return (0, 0)
-        best = INF
-        for buy, finishes in buys(i, fuel):
-            stopped = forced or buy > 0
-            here = buy * path[i].price
-            rest = (0, 0) if finishes else drive(i, fuel + buy)
-            best = best_of(best, _add(rest, here, stopped))
+        c = path[i]
+        best = INF if forced else drive(i, fuel)  # pass by
+        if fuel < c.detour:
+            return best
+        pump = fuel - c.detour
+        options = list(buys(i, pump)) + ([(0, False)] if forced else [])
+        for buy, finishes in options:
+            leave = pump + buy - c.detour
+            if leave < 0:
+                continue
+            rest = (0, 0) if finishes else drive(i, leave)
+            here = buy * c.price + (0 if forced else penalty(c))
+            best = best_of(best, _add(rest, here, not forced))
         return best
 
     @functools.lru_cache(None)
@@ -58,22 +72,26 @@ def reference(candidates, length, start_fuel, tank, min_fill=0, stop_cost=0):
 
     if start_fuel >= length:
         return (0, 0)
-    if last == 0:  # no station at all: the tank must already cover the trip
+    stations = path[:last]
+    if not stations:  # no station at all: the tank must already cover the trip
         return INF
-    first = path[0].position
-    if start_fuel >= first:
+    if start_fuel >= min(c.position + c.detour for c in stations):
         return best_of(
-            INF,
-            *(
-                at(j, start_fuel - path[j].position)
-                for j in range(len(path))
-                if path[j].position <= start_fuel
-            ),
+            INF, *(at(j, start_fuel - c.position) for j, c in enumerate(stations) if c.position <= start_fuel)
         )
-    if first > tank:
-        return INF
-    shortfall = first - start_fuel
-    return _add(at(0, 0, True), shortfall * path[0].price, False)
+    first = stations[0].position
+    return best_of(
+        INF,
+        *(
+            _add(at(j, c.detour, True), (first + c.detour - start_fuel) * c.price + penalty(c), True)
+            for j, c in enumerate(stations)
+            if c.position == first and first + c.detour <= tank
+        ),
+    )
+
+
+def order(c):
+    return (c.position, c.price, c.detour)
 
 
 def _add(result, cost, stopped):
@@ -82,58 +100,69 @@ def _add(result, cost, stopped):
     return (result[0] + cost, result[1] + int(stopped))
 
 
-def total(purchases):
-    return sum((p.fuel + p.reserve) * p.candidate.price for p in purchases)
+def objective(purchases, stop_cost=0, detour_cost=0):
+    return sum(
+        (p.fuel + p.reserve) * p.candidate.price + stop_cost + 2 * p.candidate.detour * detour_cost
+        for p in purchases
+    )
 
 
-def random_case(rng):
+def random_case(rng, detours):
     tank = rng.randint(4, 10)
     length = rng.randint(3, 30)
     start_fuel = rng.choice([0, 0, rng.randint(0, tank)])
-    positions = sorted(rng.sample(range(1, length), min(length - 1, rng.randint(0, 7))))
-    candidates = [Candidate(k, p, Decimal(rng.choice([1, 2, 2, 3, 3]))) for k, p in enumerate(positions)]
+    positions = sorted(rng.choices(range(length), k=rng.randint(0, 7)))
+    candidates = [
+        Candidate(k, p, Decimal(rng.choice([1, 2, 2, 3, 3])), rng.randint(0, 2) if detours else 0)
+        for k, p in enumerate(positions)
+    ]
     return candidates, length, start_fuel, tank
 
 
 def simulate(purchases, candidates, length, start_fuel, tank, min_fill):
-    """Drive the plan: fuel never negative or above the tank, and the fill rule holds."""
+    """Drive the plan: fuel never negative (route, pump, exit) nor above the tank, fill rule holds."""
     bought = {p.candidate.key: p for p in purchases}
     fuel, previous = start_fuel + sum(p.reserve for p in purchases), 0
-    for c in sorted(candidates, key=lambda c: (c.position, c.price)) + [Candidate(-1, length, Decimal(0))]:
+    for c in sorted(candidates, key=order) + [Candidate(-1, length, Decimal(0))]:
         fuel -= c.position - previous
         previous = c.position
         assert fuel >= 0
         if c.key in bought:
             p = bought.pop(c.key)
+            fuel -= c.detour
+            assert fuel >= 0  # reached the pump
             fuel += p.fuel
             assert fuel <= tank
-            small_ok = fuel in (tank, length - c.position)
+            small_ok = fuel in (tank, c.detour + length - c.position)
             assert p.fuel == 0 and p.reserve > 0 or p.fuel >= min_fill or small_ok
+            fuel -= c.detour
+            assert fuel >= 0  # back on the route
     assert not bought
 
 
-@pytest.mark.parametrize("stop_cost", [0, 2])
+@pytest.mark.parametrize("detours", [False, True])
+@pytest.mark.parametrize(("stop_cost", "detour_cost"), [(0, 0), (2, 1)])
 @pytest.mark.parametrize("min_fill", [0, 2, 3, "tank-1"])
-def test_matches_exhaustive_search(min_fill, stop_cost):
-    rng = random.Random(7 + (99 if min_fill == "tank-1" else min_fill) + 1000 * stop_cost)
+def test_matches_exhaustive_search(min_fill, stop_cost, detour_cost, detours):
+    rng = random.Random(7 + (99 if min_fill == "tank-1" else min_fill) + 1000 * stop_cost + 10**5 * detours)
     checked = 0
-    for _ in range(3000):
-        candidates, length, start_fuel, tank = random_case(rng)
+    for _ in range(4000):
+        candidates, length, start_fuel, tank = random_case(rng, detours)
         fill = tank - 1 if min_fill == "tank-1" else min_fill
-        best = reference(candidates, length, start_fuel, tank, fill, stop_cost)
+        args = (candidates, length, start_fuel, tank, fill, Decimal(stop_cost), Decimal(detour_cost))
+        best = reference(candidates, length, start_fuel, tank, fill, stop_cost, detour_cost)
         if best == INF:
             with pytest.raises(RangeGapError):
-                plan_purchases(candidates, length, start_fuel, tank, fill, Decimal(stop_cost))
+                plan_purchases(*args)
             continue
-        purchases = plan_purchases(candidates, length, start_fuel, tank, fill, Decimal(stop_cost))
+        purchases = plan_purchases(*args)
         checked += 1
-        assert (
-            total(purchases),
-            len(purchases),
-        ) == best  # cheapest incl. stop cost, then fewest stops: exact
-        assert sum(p.fuel + p.reserve for p in purchases) == max(0, length - start_fuel)
+        # cheapest incl. stop and detour penalties, then fewest stops: exact
+        assert (objective(purchases, stop_cost, detour_cost), len(purchases)) == best
+        detour = sum(2 * p.candidate.detour for p in purchases)
+        assert sum(p.fuel + p.reserve for p in purchases) == max(0, length - start_fuel) + detour
         simulate(purchases, candidates, length, start_fuel, tank, fill)
-    assert checked > 1000
+    assert checked > 1300
 
 
 def test_equal_prices_use_one_stop():
@@ -223,3 +252,40 @@ def test_stop_cost_skips_a_top_up_that_saves_less_than_the_stop():
 
     assert plan(0) == [450, 50]  # free stops: top up at the cheaper station
     assert plan(20) == [500]  # a stop costs more than the saving: one fill
+
+
+def test_detour_is_burned_and_bought():
+    # One pump 10 units off the route: the truck runs on reserve to it and back, and pays for both legs.
+    purchases = plan_purchases([Candidate(1, 100, Decimal("3"), 10)], length=300, start_fuel=0, tank=500)
+    assert [(p.candidate.key, p.fuel, p.reserve) for p in purchases] == [(1, 210, 110)]
+
+
+def test_detour_cost_prefers_the_nearer_pump():
+    far = Candidate(1, 0, Decimal("2.50"), 30)  # 460 units (reserve 30 + 430) at 2.50 = 1150
+    near = Candidate(2, 0, Decimal("3.00"), 1)  # 402 units at 3.00 = 1206
+
+    def first_stop(detour_cost):
+        purchases = plan_purchases([far, near], length=400, tank=500, detour_cost=Decimal(detour_cost))
+        return purchases[0].candidate.key
+
+    assert first_stop(0) == 1
+    assert first_stop(1) == 2  # 1150 + 60 of detour > 1206 + 2
+
+
+def test_tank_cap_applies_at_the_pump():
+    # The pump is 50 units off the route: a full tank there rejoins the route with 450.
+    candidates = [Candidate(1, 0, Decimal("2"), 50), Candidate(2, 440, Decimal("3"), 0)]
+    purchases = plan_purchases(candidates, length=900, tank=500)
+    simulate(purchases, candidates, 900, 0, 500, 0)
+    assert [(p.candidate.key, p.fuel, p.reserve) for p in purchases] == [(1, 500, 50), (2, 450, 0)]
+
+
+def test_a_pump_out_of_reach_is_skipped():
+    # A full tank from mile 0 arrives at the cheap station with 5 units, short of its 10-unit detour.
+    candidates = [
+        Candidate(1, 0, Decimal("2")),
+        Candidate(2, 95, Decimal("1"), 10),
+        Candidate(3, 100, Decimal("3")),
+    ]
+    purchases = plan_purchases(candidates, length=200, tank=100)
+    assert [(p.candidate.key, p.fuel) for p in purchases] == [(1, 100), (3, 100)]
