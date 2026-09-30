@@ -18,6 +18,9 @@ from stations.osm import address_exits, brand, junction_refs, match_exit, match_
         ("US-281", []),
         ("I-85, EXIT 39 I-77, EXIT 13", [("39", {("I", 85)}), ("13", {("I", 77)})]),
         ("I-5, EXIT 5A-B", [("5A", {("I", 5)})]),
+        ("I-80 EX 360", [("360", {("I", 80)})]),
+        ("I-35 EXT 138C", [("138C", {("I", 35)})]),
+        ("I-35 EXT. 138", [("138", {("I", 35)})]),
     ],
 )
 def test_address_exits(address, expected):
@@ -61,6 +64,13 @@ def test_exit_needs_the_route_and_prefers_the_near_fit():
     point = match_exit("I-80, EXIT 360", 41.0, -96.0, JUNCTIONS)
     assert point is not None and point.source == "osm:node/3" and point.precision == "exit"
     assert match_exit("I-29, EXIT 360", 41.0, -96.0, JUNCTIONS) is None
+
+
+def test_ex_abbreviation_matches_the_junction():
+    point = match_exit("I-80 EX 360", 41.0, -96.0, JUNCTIONS)
+    assert point is not None
+    assert point.source == "osm:node/3"
+    assert point.precision == "exit"
 
 
 def test_station_prefers_the_single_truck_stop():
