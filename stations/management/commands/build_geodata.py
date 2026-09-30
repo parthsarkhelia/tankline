@@ -52,8 +52,6 @@ OVERRIDES_FILE = DATA_DIR / "geocode_overrides.csv"
 CACHE_DIR = settings.BASE_DIR / ".cache" / "geodata"
 BORDER_BBOX = (-130.0, 24.0, -60.0, 53.0)
 DEFAULT_RADIUS_MILES = 2.0  # Nominatim gives a point, not an area
-# Sanity boxes for Nominatim hits (min lat, max lat, min lng, max lng): a wrong hit must not be committed.
-NOMINATIM_BOXES = {"us": (24.3, 49.5, -125.0, -66.8), "ca": (41.6, 70.0, -141.0, -52.0)}
 # Overpass (OpenStreetMap, ODbL). The mirror is tried when the main server refuses or times out.
 OVERPASS_URLS = (
     "https://overpass-api.de/api/interpreter",
@@ -218,9 +216,8 @@ class Command(BaseCommand):
             )
             response.raise_for_status()
             hits = response.json()
-            min_lat, max_lat, min_lng, max_lng = NOMINATIM_BOXES[country]
             lat, lng = (float(hits[0]["lat"]), float(hits[0]["lon"])) if hits else (0.0, 0.0)
-            if hits and min_lat <= lat <= max_lat and min_lng <= lng <= max_lng:
+            if hits and in_bounds(lat, lng, country.upper()):  # a wrong hit must not be committed
                 found[(normalize(city), state)] = (lat, lng, "nominatim")
             else:
                 self.stderr.write(f"not found or outside {country.upper()}: {city}, {state}")
@@ -286,11 +283,13 @@ class Command(BaseCommand):
                 precision = point.precision if point is not None else "city"
                 counts[(country, precision)] = counts.get((country, precision), 0) + 1
             self.stdout.write(f"{state}: {len(located)} stations, {len(junctions)} exits, {len(fuels)} fuel")
-        with gzip.open(POINTS_FILE, "wt", encoding="utf-8", newline="") as fh:
+        partial = POINTS_FILE.with_name(POINTS_FILE.name + ".part")  # never leave a half-written file
+        with gzip.open(partial, "wt", encoding="utf-8", newline="") as fh:
             writer = csv.writer(fh)
             writer.writerow(["opis_id", "lat", "lng", "precision", "source"])
             for opis_id, p in sorted(points.items()):
                 writer.writerow([opis_id, f"{p.lat:.6f}", f"{p.lng:.6f}", p.precision, p.source])
+        partial.replace(POINTS_FILE)
         for (country, precision), n in sorted(counts.items()):
             self.stdout.write(f"points: {country} {precision} {n}")
 
@@ -329,7 +328,8 @@ def _overpass(query, bbox, name, log):
             partial.replace(target)
             time.sleep(OVERPASS_PAUSE)
             return data
-        time.sleep(30 * 2**attempt)
+        if attempt + 1 < OVERPASS_RETRIES:
+            time.sleep(30 * 2**attempt)
     raise CommandError(f"Overpass unavailable for {name}; try again later.")
 
 

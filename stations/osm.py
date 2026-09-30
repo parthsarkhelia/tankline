@@ -10,10 +10,13 @@ from functools import lru_cache
 
 EXIT_KM = 40.0  # an exit this far from the city centroid is still "in" that city's listing
 STATION_KM = 15.0
+EXACT_REF_KM = 5.0  # an exact ref ("5A") beats a number-only one only this close to the nearest fit
+SAME_PUMP_KM = 8.0  # the 5-mile corridor: same-brand pumps further apart than this make a match ambiguous
 BOUNDS = {"US": (24.3, 49.5, -125.0, -66.8), "CA": (41.6, 70.0, -141.0, -52.0)}  # lower 48; Canada
 
 _ROUTE = re.compile(r"\b(IH|I|US|SR|SH|ST|HWY|HIGHWAY|TCH|RTE|RT|ROUTE|[A-Z]{1,2})\s*-?\s*(\d{1,4})[A-Z]?\b")
-_EXIT = re.compile(r"\bEXIT\s*#?\s*(\d{1,4})(?:\s*-?\s*([A-Z])\b)?")
+# The suffix letter must touch the number or follow a hyphen: in "EXIT 39 I-77" the I is a route.
+_EXIT = re.compile(r"\bEXIT\s*#?\s*(\d{1,4})(?:\s*-\s*|)([A-Z])?(?![A-Z0-9])")
 _OSM_REF = re.compile(r"^([A-Z]+)?[\s-]*(\d{1,4})")
 # Longest phrase first; the same table reads CSV names and OSM brand/name tags. None = never matched.
 _BRANDS = sorted(
@@ -166,26 +169,32 @@ def in_bounds(lat, lng, country):
 def match_exit(address, lat, lng, junctions):
     """Nearest junction whose ref is the exit and which sits on a way carrying the named route.
 
-    `junctions`: [(lat, lng, refs, routes, osm id, raw ref)]. Exact ref beats number-only
-    ('5' vs '5A').
+    `junctions`: [(lat, lng, refs, routes, osm id, raw ref)]. An address naming an Interstate needs
+    a junction on that Interstate (a shared US route is not enough). Among fits within EXACT_REF_KM
+    of the nearest one, an exact ref beats a number-only one ('5A' vs '5').
     """
     found = []
     for exit_ref, routes in address_exits(address):
         number = _number(exit_ref)
+        wanted = {r for r in routes if r[0] == "I"} or routes
         for j_lat, j_lng, refs, j_routes, osm_id, raw in junctions:
-            if not routes & j_routes or (exit_ref not in refs and number not in {_number(r) for r in refs}):
+            if not wanted & j_routes or (exit_ref not in refs and number not in {_number(r) for r in refs}):
                 continue
             d = km(lat, lng, j_lat, j_lng)
             if d <= EXIT_KM:
                 point = Point(j_lat, j_lng, "exit", f"osm:node/{osm_id}", f"ref={raw} d={d:.1f}km")
-                found.append(((exit_ref not in refs, d), point))
-    return min(found, key=lambda f: f[0])[1] if found else None
+                found.append((exit_ref not in refs, d, point))
+    if not found:
+        return None
+    nearest = min(d for _, d, _ in found)
+    return min((f for f in found if f[1] <= nearest + EXACT_REF_KM), key=lambda f: f[:2])[2]
 
 
 def match_station(name, lat, lng, fuels):
-    """Nearest same-brand amenity=fuel within STATION_KM; truck-tagged ones first.
+    """Same-brand amenity=fuel within STATION_KM of the city, or None when the match is ambiguous.
 
-    `fuels`: [(lat, lng, tags, osm type/id)].
+    `fuels`: [(lat, lng, tags, osm type/id)]. A single truck-tagged candidate wins outright. Otherwise
+    the nearest (truck-tagged first) is kept only if every other candidate is within SAME_PUMP_KM of it.
     """
     want, plain = brand(name), plain_name(name)
     found = []
@@ -200,4 +209,12 @@ def match_station(name, lat, lng, fuels):
             truck = tags.get("hgv") in ("yes", "designated") or tags.get("fuel:HGV_diesel") == "yes"
             detail = f"brand={tags.get('brand', '')} name={tags.get('name', '')} hgv={int(truck)} d={d:.1f}km"
             found.append(((not truck, d), Point(f_lat, f_lng, "station", f"osm:{osm_id}", detail)))
-    return min(found, key=lambda f: f[0])[1] if found else None
+    if not found:
+        return None
+    trucks = [p for (not_truck, _), p in found if not not_truck]
+    if len(trucks) == 1:
+        return trucks[0]
+    best = min(found, key=lambda f: f[0])[1]
+    if all(km(best.lat, best.lng, p.lat, p.lng) <= SAME_PUMP_KM for _, p in found):
+        return best
+    return None
