@@ -225,7 +225,7 @@ def _summary(length, stops, fuel):
         "start_fuel_miles": fuel / 10,
         "range_miles": settings.VEHICLE_RANGE_MILES,
         "mpg": settings.VEHICLE_MPG,
-        "stop_cost_usd": str(settings.STOP_COST_USD),
+        "stop_cost_usd": str(settings.STOP_COST_USD.quantize(CENT)),
     }
 
 

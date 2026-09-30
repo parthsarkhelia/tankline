@@ -32,7 +32,7 @@ def test_chicago_to_st_louis_end_to_end():
     assert body["meta"] == {**body["meta"], "external_calls": 1, "cache_hit": False}
     assert body["fuel_stops"], "a 294-mile trip on reserve must buy fuel"
     assert summary["gallons_purchased"] == summary["gallons_burned"]  # every mile's fuel is paid for
-    assert summary["stop_cost_usd"] == "18"
+    assert summary["stop_cost_usd"] == "18.00"
     assert Decimal(summary["total_cost"]) == sum(Decimal(s["cost"]) for s in body["fuel_stops"])
     for stop in body["fuel_stops"]:  # the shown numbers multiply out exactly
         bought = Decimal(stop["gallons"]) + Decimal(stop["reserve_gallons"])
@@ -209,4 +209,4 @@ def test_changing_the_stop_cost_never_serves_an_old_plan(settings, monkeypatch):
     settings.STOP_COST_USD = Decimal(0)
     body = services.plan_trip("Chicago, IL", "St. Louis, MO")
     assert runs == [1]
-    assert body["summary"]["stop_cost_usd"] == "0"
+    assert body["summary"]["stop_cost_usd"] == "0.00"

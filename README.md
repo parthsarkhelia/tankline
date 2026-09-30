@@ -31,7 +31,7 @@ request on the real price list with OSRM routing.
     "start_fuel_miles": 0.0,
     "range_miles": 500,
     "mpg": 10,
-    "stop_cost_usd": "18"
+    "stop_cost_usd": "18.00"
   },
   "assumptions": [
     "Assumes the truck starts with an empty tank and fills up at the cheapest station near the start. ..."

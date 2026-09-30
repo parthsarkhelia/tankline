@@ -58,15 +58,17 @@ search. The reported `total_cost` stays fuel money only. Derivation:
 
 - ATRI's "Operational Costs of Trucking" 2025 update (2024 data) puts the all-in cost at about $90.89 per
   truck-hour.
-- ATRI's 2026 report (2025 data) gives $2.336 per mile in total, of which $1.854 is non-fuel (about 79%).
-  A parked truck burns no fuel, so the non-fuel share applies: 90.89 x 0.79 is about $72 per hour.
+- ATRI's 2025 report (2024 data) gives $2.260 per mile in total, of which $1.779 is non-fuel (about
+  78.7%). The following year's figures (2025 data, reported by Trucking Info) are $2.336 per mile in
+  total and $1.854 non-fuel (about 79.4%). Both years give a non-fuel share of about 79%. A parked truck
+  burns no fuel, so the non-fuel share applies: 90.89 x 0.79 is about $72 per hour.
 - A fuel stop (exit, queue, pump, pay, re-merge) is assumed to take about 15 minutes. This is an
   assumption, not a published figure; 10 to 20 minutes gives $12 to $24.
 - 72 x 0.25 is about $18 per stop.
 
 Sources: [ATRI operational costs](https://truckingresearch.org/about-atri/atri-research/operational-costs-of-trucking/);
-[ATRI 2026 report summary](https://truckingresearch.org/2025/07/new-atri-report-shows-trucking-profitability-severly-squeezed-by-high-costs-low-rates/);
-[Trucking Info coverage](https://www.truckinginfo.com/news/trucking-fleets-faced-record-operating-costs-during-third-year-of-freight-recession).
+[ATRI 2025 report summary (2024 data)](https://truckingresearch.org/2025/07/new-atri-report-shows-trucking-profitability-severly-squeezed-by-high-costs-low-rates/);
+[Trucking Info, 2025 data](https://www.truckinginfo.com/news/trucking-fleets-faced-record-operating-costs-during-third-year-of-freight-recession).
 Measured on the real price list with OSRM routing: New York to Los Angeles goes from 16 stops (fuel
 $852.67, smallest fill 1.28 gal) at $0 to 7 stops (fuel $860.10, smallest fill 18.53 gal) at $18;
 Chicago to Denver goes from 6 stops ($292.38, 10.0 gal) to 3 stops ($293.48, 23.7 gal). Set

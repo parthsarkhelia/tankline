@@ -27,7 +27,16 @@ def test_bad_provider_is_an_error(settings):
 
 
 @pytest.mark.parametrize(
-    ("value", "expected"), [("18", []), ("0", []), ("-1", ["planner.E003"]), ("NaN", ["planner.E003"])]
+    ("value", "expected"),
+    [
+        ("18", []),
+        ("0", []),
+        ("-1", ["planner.E003"]),
+        ("NaN", ["planner.E003"]),
+        ("inf", ["planner.E003"]),
+        ("1000", []),
+        ("1001", ["planner.E003"]),
+    ],
 )
 def test_stop_cost_must_be_zero_or_more(settings, value, expected):
     settings.STOP_COST_USD = Decimal(value)
